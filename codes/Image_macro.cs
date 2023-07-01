@@ -163,19 +163,25 @@ namespace imaginator_halothousand.code_stuff{
                 return false;
 
             // set pos x // update value
-            last_step = "pos x";
-            if (!navigate_and_assign_menu_value(postion_x_index, (float)pixel.X)) 
-                return false;
+            for (int i = 0; i < 3; i++){
+                last_step = "pos x";
+                if (navigate_and_assign_menu_value(postion_x_index, (float)pixel.X)) break;
+                else if (i == 2) return false;
+            }
 
             // set pos y // update value
-            last_step = "pos y";
-            if (!navigate_and_assign_menu_value(postion_y_index, (float)pixel.Y)) 
-                return false;
+            for (int i = 0; i < 3; i++){
+                last_step = "pos y";
+                if (navigate_and_assign_menu_value(postion_y_index, (float)pixel.Y)) break;
+                else if (i == 2) return false;
+            }
 
             // set pos z // update value
-            last_step = "pos z";
-            if (!navigate_and_assign_menu_value(postion_z_index, (float)pixel.Z)) 
-                return false;
+            for (int i = 0; i < 3; i++){
+                last_step = "pos z";
+                if (navigate_and_assign_menu_value(postion_z_index, (float)pixel.Z)) break;
+                else if(i == 2) return false;
+            }
 
             // goto color element
             last_step = "going to color";
@@ -189,7 +195,7 @@ namespace imaginator_halothousand.code_stuff{
             Thread.Sleep(100);
             // set color
             last_step = "setting color";
-            if (!Set_color_selected_index(55)) 
+            if (!Set_color_selected_index(pixel.color_index)) 
                 return false;
             Thread.Sleep(50);
             // close color element
@@ -249,7 +255,7 @@ namespace imaginator_halothousand.code_stuff{
 
         #region AWAIT WINDOWS CLOSING
         private bool Await_property_menu_close(){ // loop until the pointer is invalid
-            for (int i = 0; i < 10; i++){
+            for (int i = 0; i < 20; i++){
                 if (i > 0) Thread.Sleep(10);
                 if (return_UI_property_window_ptr() != null)
                     continue;
@@ -258,7 +264,7 @@ namespace imaginator_halothousand.code_stuff{
             return false;
         }
         private bool Await_color_menu_close(){ // loop until the pointer is invalid
-            for (int i = 0; i < 10; i++){
+            for (int i = 0; i < 20; i++){
                 if (i > 0) Thread.Sleep(10);
                 if (return_UI_color_window_ptr() != null)
                     continue;
@@ -267,7 +273,7 @@ namespace imaginator_halothousand.code_stuff{
             return false;
         }
         private bool Await_value_menu_close(){ // loop until the pointer is invalid
-            for (int i = 0; i< 10; i++){
+            for (int i = 0; i< 20; i++){
                 if (i > 0) Thread.Sleep(10);
                 if (return_UI_value_window_ptr() != null)
                     continue;
@@ -289,7 +295,9 @@ namespace imaginator_halothousand.code_stuff{
         private bool Await_selected_value_change(){
             if (selected_value == null)
                 return false; // logic error
+            Thread.Sleep(100);
             for (int i = 0; i < 15; i++){
+                if (i > 0) Thread.Sleep(15);
                 float? value = Get_menu_selected_value();
                 if (value == null) continue;
                 if (value == selected_value) continue;
@@ -311,6 +319,7 @@ namespace imaginator_halothousand.code_stuff{
             if (selected_color == null)
                 return false; // logic error
             for (int i = 0; i < 15; i++){
+                if (i > 0) Thread.Sleep(15);
                 int? index = Get_color_selected_index();
                 if (index == null) continue;
                 if (index == selected_color) continue;
@@ -363,27 +372,31 @@ namespace imaginator_halothousand.code_stuff{
         private bool navigate_and_assign_menu_value(int index, float value){
             if (!Set_menu_selected_index(index)) 
                 return false;
-            if (!Apply_menu_selected_value(value)) 
+            if (!Apply_menu_selected_value(value - 0.10f)) 
                 return false;
             if (!Apply_menu_value()) 
-                return false;
+                return false; // expected to fail sometimes
             return true;
         } // pos x,y,z
         private bool navigate_and_open_close_assign_value(int index, float value){
             if (!Set_menu_selected_index(index)) 
                 return false;
-            if (!Apply_menu_selected_value(value - 0.10f)) 
+            if (!Apply_menu_selected_value(value)) 
                 return false;
             if (!do_key_press(VirtualKeyCode.RETURN)) 
                 return false;
             if (!Await_value_menu_open())
                 return false;
-            Thread.Sleep(100); // extra time for the menu to open
+            Thread.Sleep(150); // extra time for the menu to open
             // TODO: repeat loop here
-            if (!do_key_press(VirtualKeyCode.RETURN))
-                return false;
-            if (!Await_value_menu_close())
-                return false;
+            for (int i = 0; i < 5; i++){
+                if (!do_key_press(VirtualKeyCode.RETURN))
+                    return false;
+                Thread.Sleep(250); // extra time for the menu to open
+                if (Await_value_menu_close()) break;
+                else if (i == 4) 
+                    return false;
+            }
             return true;
         } // color intensity
         private bool Set_menu_selected_index(int index){
@@ -393,7 +406,7 @@ namespace imaginator_halothousand.code_stuff{
             // write value
             if (!cm.write_int32((long)index_ptr, index)) 
                 return false;
-            Thread.Sleep(150); // time for the new selection to occur
+            Thread.Sleep(250); // time for the new selection to occur
             return true;
         }
         private bool Apply_menu_selected_value(float new_val){
@@ -403,7 +416,7 @@ namespace imaginator_halothousand.code_stuff{
             // write value
             if (!cm.write_float((long)value_ptr, new_val)) 
                 return false;
-            Thread.Sleep(100); // time for the value to update
+            Thread.Sleep(150); // time for the value to update
             return true;
         }
         private float? Get_menu_selected_value(){
@@ -420,11 +433,13 @@ namespace imaginator_halothousand.code_stuff{
         private bool Apply_menu_value(){
             if (!record_selected_value())
                 return false;
+            Thread.Sleep(75); // time for recorded value to register?
             if (!do_key_press(VirtualKeyCode.RIGHT)) 
                 return false;
+            Thread.Sleep(75); // time for the key input to register
             if (!Await_selected_value_change())
                 return false;
-            Thread.Sleep(50); // time for the key input to register
+            Thread.Sleep(75); 
             return true;
         }
         #endregion
@@ -488,8 +503,10 @@ namespace imaginator_halothousand.code_stuff{
         private bool Color_up(){
             if (!record_selected_color())
                 return false;
+            Thread.Sleep(50);
             if (!do_key_press(VirtualKeyCode.UP))
                 return false;
+            Thread.Sleep(50);
             if (!Await_selected_color_change())
                 return false;
             return true;
@@ -497,8 +514,10 @@ namespace imaginator_halothousand.code_stuff{
         private bool Color_down(){
             if (!record_selected_color())
                 return false;
+            Thread.Sleep(50);
             if (!do_key_press(VirtualKeyCode.DOWN))
                 return false;
+            Thread.Sleep(50);
             if (!Await_selected_color_change())
                 return false;
             return true;
@@ -508,8 +527,17 @@ namespace imaginator_halothousand.code_stuff{
         private bool do_key_press(VirtualKeyCode key, bool ctrl = false){
             if (!is_game_session_is_alive()) 
                 return false;
+
+            SetForegroundWindow(cm.hooked_process.MainWindowHandle); // fix it
+
             if (ctrl) Simulate.Keyboard.KeyPress(VirtualKeyCode.LCONTROL);
-            Simulate.Keyboard.KeyPress(key);
+            Simulate.Keyboard.KeyDown(key);
+            Thread.Sleep(10);
+            Simulate.Keyboard.KeyUp(key);
+            Thread.Sleep(10);
+            Simulate.Keyboard.KeyUp(key);
+            Thread.Sleep(10);
+            Simulate.Keyboard.KeyUp(key);
             return is_game_session_is_alive();
         }
 

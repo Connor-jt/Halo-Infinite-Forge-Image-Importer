@@ -158,7 +158,7 @@ namespace imaginator_halothousand.code_stuff
         // float[] intensity_base = { 0.6120656f, 0.6120656f, 0.6120656f };
 
         // SWATCH : 'Paint' //
-        // float[] intensity_base = { 0.2195197f, 0.2195197f, 0.21951972f };
+        float[] intensity_base = { 0.2195197f, 0.2195197f, 0.21951972f };
 
         // SWATCH : 'Plastic Techsuit' //
         // float[] intensity_base = { 0.07176145f, 0.07176145f, 0.07176145f };
@@ -167,7 +167,7 @@ namespace imaginator_halothousand.code_stuff
         // float[] intensity_base = { 0.48627450f, 0.96078431f, 0.03921568f };
 
         // SWATCH : 'Copper Metal Scratched' //
-        float[] intensity_base = { 0.54089517f, 0.1732085f, 0.0f };
+        // float[] intensity_base = { 0.54089517f, 0.1732085f, 0.0f };
 
         // float[] intensity_base = { 0.5f, 0.5f, 0.5f };
         // SWATCH : '' //
