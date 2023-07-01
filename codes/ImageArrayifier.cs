@@ -8,6 +8,8 @@ using System.Drawing;
 
 using System.IO;
 using System.Windows.Media.Imaging;
+using System.Windows.Controls.Ribbon.Primitives;
+using System.Reflection.Metadata.Ecma335;
 
 namespace imaginator_halothousand.code_stuff
 {
@@ -144,91 +146,113 @@ namespace imaginator_halothousand.code_stuff
             {0.1087112f,  0.00120174f, 0.85125166f  },
         };
 
-        float[] intensity_base = { 0.07176145f, 0.07176145f, 0.07176145f };
+        // //////////////// //
+        // SWATCHES COLORS //
+        // ////////////// //
+
+
+        // SWATCH : 'Snowman Snow' //
+        // float[] intensity_base = { 0.7969165f, 0.7969165f, 0.79691654f };
+
+        // SWATCH : 'Brushed' //
+        // float[] intensity_base = { 0.6120656f, 0.6120656f, 0.6120656f };
+
+        // SWATCH : 'Paint' //
+        // float[] intensity_base = { 0.2195197f, 0.2195197f, 0.21951972f };
+
+        // SWATCH : 'Plastic Techsuit' //
+        // float[] intensity_base = { 0.07176145f, 0.07176145f, 0.07176145f };
+
+        // SWATCH : 'Enamal Smooth' //
+        // float[] intensity_base = { 0.48627450f, 0.96078431f, 0.03921568f };
+
+        // SWATCH : 'Copper Metal Scratched' //
+        float[] intensity_base = { 0.54089517f, 0.1732085f, 0.0f };
+
+        // float[] intensity_base = { 0.5f, 0.5f, 0.5f };
+        // SWATCH : '' //
+        //float[] intensity_base = { 0.0f, 0.0f, 0.0f };
+
+
         // forge_palette_index[128], color_intensity[100], RGB[3]
         float[,,] intensity_color_list = new float[128,101,3];
 
-        private MainWindow main;
 
         // adding this incase there is ever a need to scale the pixels spacing aswell
-        public ImageArrayifier(double _scale, double x, double y, double z, MainWindow _main){
+        public ImageArrayifier(double _scale, double x, double y, double z){
             scale    = _scale;
             global_X = x;
             global_Y = y;
             global_Z = z;
-            main = _main;
         }
         double scale = 1;
         double global_X = 0;
         double global_Y = 0;
         double global_Z = 0;
 
-        
-
-        //  ==========================
-        //  == SAMPLE CALL FUNCTION ==
-        //  ==========================
-        //  void get_pixels_into_nicer_format()
-        //  {
-        //      var all_pixels = ImageArrayifier.pixel_queue(@"C:\Users\David\Downloads\4854-amogus.png");
-        //      for (int i = 0; i < all_pixels.Length; i++)
-        //      {
-        //          var pixel = all_pixels[i];
-        //          // now interface this with the tool to spawn in each object
-        //          // note: this could be simplified if you just did this inside of the function that creates the array, opposed to actually creating the array
-        //          // pixel.color
-        //          // pixel.X
-        //          // pxiel.Y
-        //          // pixel.Z -- this is 0, unless you create an override
-        //      }
-        //  }
 
         public struct mapped_object{
             public int color_index;
+            public int intensity_index;
             public double X;
             public double Y;
             public double Z;
         }
-        /*
-        public return_object()
-        {
-            mapped_object[]? pixels;
-            string? output_message;
-            int pixel_count;
-            float image_accuracy;
+        
+        public class return_object{
+            public Bitmap? source_img;
+            public Bitmap? visualized_img;
+
+            public mapped_object?[]? pixels;
+            public string? output_message;
+            public int pixel_count;
+            public double image_accuracy;
+            
 
         }
-        */
 
-        public mapped_object[] pixel_queue(string file_directory, bool build_vertical){
-            Bitmap myBitmap = new Bitmap(file_directory);
-            Bitmap visualizedBitmap = new Bitmap(file_directory);
+        public return_object result = new ();
+
+
+        public return_object pixel_queue(string file_directory, bool build_vertical){
+
+            result.source_img = new Bitmap(file_directory);
+            result.visualized_img = new Bitmap(file_directory);
 
             build_intensity_table(); // only needed in intensity consideration
 
-            mapped_object[] pixels = new mapped_object[myBitmap.Width*myBitmap.Height];
+            result.pixel_count = result.source_img.Width * result.source_img.Height;
+            result.pixels = new mapped_object?[result.pixel_count];
+
             int curr_pixel = 0;
-            for (int x=0; x < myBitmap.Width; x++){
-                for (int y = 0; y < myBitmap.Height; y++){
+            for (int x=0; x < result.source_img.Width; x++){
+                for (int y = 0; y < result.source_img.Height; y++){
+                    // check if pixel is transparent, if so skip it
+                    Color pixel = result.source_img.GetPixel(x, y);
+                    if (pixel.A == 0) {
+                        result.pixels[curr_pixel] = null;
+                        curr_pixel++;
+                        continue;
+                    }
 
                     //int color_index = get_index_of_closest_color(myBitmap.GetPixel(x, y));
                     //visualizedBitmap.SetPixel(x, y, color_by_list_index(color_index));
-                    KeyValuePair<int, int> color_index = get_index_and_intensity_of_closest_color(myBitmap.GetPixel(x, y));
-                    visualizedBitmap.SetPixel(x, y, color_by_intensity_list_index(color_index.Key, color_index.Value));
+                    KeyValuePair<int, int> color_index = get_index_and_intensity_of_closest_color(pixel);
+                    result.visualized_img.SetPixel(x, y, color_by_intensity_list_index(color_index.Key, color_index.Value));
 
 
-                    if (build_vertical) pixels[curr_pixel] = new mapped_object { color_index = color_index.Key, X = global_X + (x * scale), Y = global_Y + (y * scale), Z = global_Z };
-                    else                pixels[curr_pixel] = new mapped_object { color_index = color_index.Key, X = global_X + (x*scale), Y = global_Y + (y*scale), Z = global_Z };
+                    if (!build_vertical) result.pixels[curr_pixel] = new mapped_object { color_index = color_index.Key, intensity_index = color_index.Value, X = global_X+(x*scale), Y = global_Y+(y*scale), Z = global_Z          };
+                    else                 result.pixels[curr_pixel] = new mapped_object { color_index = color_index.Key, intensity_index = color_index.Value, X = global_X+(x*scale), Y = global_Y,           Z = global_Z+(y*scale)};
                     curr_pixel++;
                 }
             }
             // show the images
-            main.og_image.Source   = BitmapToImageSource(myBitmap);
-            main.demo_image.Source = BitmapToImageSource(visualizedBitmap);
+            //main.og_image.Source   = BitmapToImageSource(myBitmap);
+            //main.demo_image.Source = BitmapToImageSource(visualizedBitmap);
             // return array
-            return pixels;
+            return result;
         }
-
+        #region PALETTE_INDEX_COLORS
         int get_index_of_closest_color(Color og_color){
             float r = color_as_float(og_color.R);
             float b = color_as_float(og_color.G);
@@ -250,15 +274,11 @@ namespace imaginator_halothousand.code_stuff
             }
             return closest_match_index;
         }
-
-        float color_as_float(byte color){
-            return (float)color / 255;
-        }
         Color color_by_list_index(int index){
-            return Color.FromArgb((byte)(color_list[index,0] * 255), (byte)(color_list[index,1] * 255), (byte)(color_list[index,2] * 255));
+            return Color.FromArgb((byte)(color_list[index, 0] * 255), (byte)(color_list[index, 1] * 255), (byte)(color_list[index, 2] * 255));
         }
-
-
+        #endregion
+        #region PALETTE_INTENSITY_COLORS
         void build_intensity_table(){
             for (int i = 0; i < color_list.Length / 3; i++){ // my c sharp brothers in christ, why does length tell me the length OF THE WHOLE THING
                 float r = color_list[i, 0];
@@ -268,12 +288,30 @@ namespace imaginator_halothousand.code_stuff
                 for (int intensity = 0; intensity <= 100; intensity++){
                     float intensity_f = (float)intensity / 100;
 
-                    intensity_color_list[i,intensity,0] = intensity_base[0] + (r * intensity_f);
-                    intensity_color_list[i,intensity,1] = intensity_base[1] + (g * intensity_f);
-                    intensity_color_list[i,intensity,2] = intensity_base[2] + (b * intensity_f);
+
+                    // interpolate between base color and new
+                    // 
+
+                    intensity_color_list[i,intensity,0] = interpolate_colors(intensity_base[0], r, intensity_f);
+                    intensity_color_list[i,intensity,1] = interpolate_colors(intensity_base[1], g, intensity_f);
+                    intensity_color_list[i,intensity,2] = interpolate_colors(intensity_base[2], b, intensity_f);
+
+                    if (intensity_color_list[i, intensity, 0] > 1.0f || intensity_color_list[i, intensity, 1] > 1.0f || intensity_color_list[i, intensity, 2] > 1.0f)
+                    {
+                        continue;
+                    }
+                    if (intensity_color_list[i, intensity, 0] < 0.0f || intensity_color_list[i, intensity, 1] < 0.0f || intensity_color_list[i, intensity, 2] < 0.0f)
+                    {
+                        continue;
+                    }
                 }
-            }
+            }}
+        float interpolate_colors(float A, float B, float factor){
+            return A - ((A - B) * factor);
         }
+
+
+
         KeyValuePair<int, int> get_index_and_intensity_of_closest_color(Color og_color){
             float r = color_as_float(og_color.R);
             float b = color_as_float(og_color.G);
@@ -290,7 +328,7 @@ namespace imaginator_halothousand.code_stuff
                     float i_b = intensity_color_list[i, intensity, 1];
                     float i_g = intensity_color_list[i, intensity, 2];
 
-                    float distance = Math.Abs(r - i_r) + Math.Abs(g - i_g) + Math.Abs(b - i_b);
+                    float distance = float_rb_dist(r, i_r) + float_rb_dist(g, i_g) + float_rb_dist(b, i_b);
                     if (closest_match_distance == null || distance < closest_match_distance){
                         closest_palette_index = i;
                         closest_intensity_index = intensity;
@@ -298,31 +336,33 @@ namespace imaginator_halothousand.code_stuff
                     }
                 }
             }
-
+            if (closest_match_distance > 0.5)
+            {
+                float i_r = intensity_color_list[closest_palette_index, closest_intensity_index, 0];
+                float i_b = intensity_color_list[closest_palette_index, closest_intensity_index, 1];
+                float i_g = intensity_color_list[closest_palette_index, closest_intensity_index, 2];
+                Console.WriteLine("dooty breakpoint test");
+            }
+            // calculate accuracy
+            result.image_accuracy += (1.0 - ((double)closest_match_distance / 3.0)) / result.pixel_count;
             return new KeyValuePair<int, int> (closest_palette_index, closest_intensity_index);
 
+        }
+        float float_rb_dist(float A, float B){
+            float linear_dist = Math.Abs(A - B);
+            //if (linear_dist > 0.5f){ // thinking about this now, it seems this is actually a bad idea
+            //    return 1.0f - linear_dist;
+            //} 
+            return linear_dist;
         }
         Color color_by_intensity_list_index(int index, int intensity){
             return Color.FromArgb((byte)(intensity_color_list[index,intensity,0] * 255), (byte)(intensity_color_list[index,intensity,1] * 255), (byte)(intensity_color_list[index,intensity,2] * 255));
         }
+        #endregion
 
-
-
-
-        BitmapImage BitmapToImageSource(Bitmap bitmap)
-        {
-            using (MemoryStream memory = new MemoryStream())
-            {
-                bitmap.Save(memory, System.Drawing.Imaging.ImageFormat.Bmp);
-                memory.Position = 0;
-                BitmapImage bitmapimage = new BitmapImage();
-                bitmapimage.BeginInit();
-                bitmapimage.StreamSource = memory;
-                bitmapimage.CacheOption = BitmapCacheOption.OnLoad;
-                bitmapimage.EndInit();
-
-                return bitmapimage;
-            }
+        float color_as_float(byte color){
+            return (float)color / 255;
         }
+
     }
 }

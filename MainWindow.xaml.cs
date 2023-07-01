@@ -1,5 +1,7 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Drawing;
+using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
@@ -25,7 +27,7 @@ namespace imaginator_halothousand{
         }
 
 
-        mapped_object[]? pixels;
+        return_object? image_instructions;
 
         private void Load_image(object sender, RoutedEventArgs e){
 
@@ -33,22 +35,39 @@ namespace imaginator_halothousand{
 
             if (ofd.ShowDialog() == true){
 
-                ImageArrayifier new_imagator = new ImageArrayifier(4.0, 0.0, 50.0, 550.0, this);
-                pixels = new_imagator.pixel_queue(ofd.FileName, true);
+                ImageArrayifier new_imagator = new ImageArrayifier(4.0, 0.0, 50.0, 550.0);
+                image_instructions = new_imagator.pixel_queue(ofd.FileName, true);
 
+                Print("color converted with " + Math.Round(image_instructions.image_accuracy * 100.0, 4) + "% accuracy");
 
+                // display the comparison images
+                og_image.Source   = BitmapToImageSource(image_instructions.source_img);
+                demo_image.Source = BitmapToImageSource(image_instructions.visualized_img);
 
-
+                // functionality to output image for testing purposes
+                //image_instructions.visualized_img.Save("C:\\Users\\Joe bingle\\Downloads\\IFIMT research\\output.png", System.Drawing.Imaging.ImageFormat.Png);
             }
         }
-        private void Run_Macro(object sender, RoutedEventArgs e)
-        {
-            if (pixels == null){
+        BitmapImage BitmapToImageSource(Bitmap bitmap){
+            using (MemoryStream memory = new MemoryStream()){
+                bitmap.Save(memory, System.Drawing.Imaging.ImageFormat.Bmp);
+                memory.Position = 0;
+                BitmapImage bitmapimage = new BitmapImage();
+                bitmapimage.BeginInit();
+                bitmapimage.StreamSource = memory;
+                bitmapimage.CacheOption = BitmapCacheOption.OnLoad;
+                bitmapimage.EndInit();
 
-                return;
+                return bitmapimage;
             }
+        }
+
+        private void Run_Macro(object sender, RoutedEventArgs e){
+            if (image_instructions == null || image_instructions.pixels == null) return;
+
             Image_macro image_maker = new Image_macro();
-            image_maker.begin_macro(pixels);
+            image_maker.begin_macro(image_instructions.pixels);
+            Print(image_maker.last_step);
         }
 
 

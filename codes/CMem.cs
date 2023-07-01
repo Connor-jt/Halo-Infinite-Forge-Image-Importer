@@ -98,7 +98,7 @@ namespace imaginator_halothousand.code_stuff{
         }
         public float? read_float(long address){
             byte[]? read_var = read_mem(address, 4);
-            return read_var != null ? BitConverter.ToInt64(read_var) : null;
+            return read_var != null ? BitConverter.ToSingle(read_var) : null;
         }
         #endregion
         #region MEM WRITING

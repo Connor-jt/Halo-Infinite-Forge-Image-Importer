@@ -12,6 +12,7 @@ using WindowsInput.Native;
 using static imaginator_halothousand.code_stuff.ImageArrayifier;
 using System.Diagnostics;
 using System.Windows.Input;
+using System.Windows.Controls;
 
 namespace imaginator_halothousand.code_stuff{
     internal class Image_macro{
@@ -71,15 +72,18 @@ namespace imaginator_halothousand.code_stuff{
 
         int UI_property_menu_TAGID       = 0x3AEF69DB;
         int UI_color_menu_TAGID          = 0x2D9F2A06;
+        int UI_value_menu_TAGID          = 0x642CFE7F;
 
         long[] UI_index_ptr = new long[] { 0xC8,  0x378, 0xE44, 0x328, 0x1D0, 0xB8,  0x928 }; // property window
         long[] UI_value_ptr = new long[] { 0xB88, 0xB08, 0x8C0, 0x8,   0x0,   0xFC         }; // property window
         long[] UI_color_ptr = new long[] { 0xB88, 0x6C8, 0xA0,  0x5A8, 0x928               }; // color window
         long? return_UI_property_window_ptr() => return_UI_window_ptr(UI_property_menu_TAGID);
         long? return_UI_color_window_ptr()    => return_UI_window_ptr(UI_color_menu_TAGID);
+        long? return_UI_value_window_ptr()    => return_UI_window_ptr(UI_value_menu_TAGID);
         long? return_UI_window_ptr(int tag_id){ // doubles as a check to see if the window is open
             // attempt a few times, incase the timing was the worst ever
             for (int repeat = 0; repeat < 3; repeat++){
+                if (repeat > 0) Thread.Sleep(5);
 
                 int? array_length = cm.read_int32(Halodll_address + UI_array_size_offset);
                 if (array_length == null) return null;
@@ -119,7 +123,7 @@ namespace imaginator_halothousand.code_stuff{
         #endregion
 
         // MAIN FUNCTIONS
-        public void begin_macro(mapped_object[] pixels){
+        public void begin_macro(mapped_object?[] pixels){
             // setup memory interface
             cm = new();
             if (!cm.hook_and_open_process("HaloInfinite")){
@@ -133,90 +137,220 @@ namespace imaginator_halothousand.code_stuff{
             SetForegroundWindow(cm.hooked_process.MainWindowHandle);
             Thread.Sleep(500);
 
-            foreach (mapped_object pixel in pixels){ // we're going to need the tile index for saving purposes
-                if (!create_pixel(pixel)){
-                    break; // failed
+            foreach (mapped_object? pixel in pixels){ // we're going to need the tile index for saving purposes
+                if (pixel == null) continue;
+                if (!create_pixel((mapped_object)pixel)){
+                    return; // failed
                 }
                 Thread.Sleep(500);
             }
-
+            last_step = "success";
         }
         bool is_game_session_is_alive(){
-            bool connected = (cm != null && cm.hooked_process != null && !cm.hooked_process.HasExited);
-            if (!connected) game_session_lost();
-            return connected;
-        }
-        void game_session_lost(){
-            // commit save & close protocol here
-
+            return (cm != null && cm.hooked_process != null && !cm.hooked_process.HasExited);
         }
 
-
+        public string last_step = "None";
 
         bool create_pixel(mapped_object pixel){
-            Debug.WriteLine("duplicating object");
-            if (!DuplicateObject()) return false;
-            Thread.Sleep(500); // time for the object to spawn in
+            last_step = "duplicating object";
+            if (!DuplicateObject()) 
+                return false;
+            Thread.Sleep(350); // time for the object to spawn in
 
-            Debug.WriteLine("openning menu");
-            if (!Enable_property_menu()) return false;
-            Thread.Sleep(500);
+            last_step = "openning menu";
+            if (!Enable_property_menu()) 
+                return false;
 
             // set pos x // update value
-            Debug.WriteLine("pos x");
-            if (!navigate_and_assign_menu_value(postion_x_index, (float)pixel.X)) return false;
-            Thread.Sleep(500);
+            last_step = "pos x";
+            if (!navigate_and_assign_menu_value(postion_x_index, (float)pixel.X)) 
+                return false;
+
             // set pos y // update value
-            Debug.WriteLine("pos y");
-            if (!navigate_and_assign_menu_value(postion_y_index, (float)pixel.Y)) return false;
-            Thread.Sleep(500);
+            last_step = "pos y";
+            if (!navigate_and_assign_menu_value(postion_y_index, (float)pixel.Y)) 
+                return false;
+
             // set pos z // update value
-            Debug.WriteLine("pos z");
-            if (!navigate_and_assign_menu_value(postion_z_index, (float)pixel.Z)) return false;
-            Thread.Sleep(500);
+            last_step = "pos z";
+            if (!navigate_and_assign_menu_value(postion_z_index, (float)pixel.Z)) 
+                return false;
 
             // goto color element
-            Debug.WriteLine("going to color");
-            if (!Set_menu_selected_index(color_index)) return false;
-            Thread.Sleep(500);
+            last_step = "going to color";
+            if (!Set_menu_selected_index(color_index)) 
+                return false;
+            Thread.Sleep(50);
             // open color element
-            Debug.WriteLine("openning color");
-            if (!Enable_color_menu()) return false;
-            Thread.Sleep(500);
+            last_step = "openning color";
+            if (!Enable_color_menu()) 
+                return false;
+            Thread.Sleep(100);
             // set color
-            Debug.WriteLine("setting color");
-            if (!Set_color_selected_index(55)) return false;
-            Thread.Sleep(500);
+            last_step = "setting color";
+            if (!Set_color_selected_index(55)) 
+                return false;
+            Thread.Sleep(50);
             // close color element
-            Debug.WriteLine("closing color");
-            if (!Disable_color_menu()) return false;
+            last_step = "closing color";
+            if (!Disable_color_menu()) 
+                return false;
+            Thread.Sleep(100);
+            // set color intensity
+            last_step = "color intensity";
+            if (!navigate_and_open_close_assign_value(intensity_index, (float)pixel.intensity_index / 100)) 
+                return false;
             Thread.Sleep(500);
 
             // close panel
-            Debug.WriteLine("closing menu");
-            if (!Disable_property_menu()) return false;
+            last_step = "closing menu";
+            if (!Disable_property_menu()) 
+                return false;
             Thread.Sleep(500);
 
             return true;
         }
 
 
+        #region AWAIT WINDOWS OPEN
+        private bool Await_property_menu_open(){ // loop until menu values are readable
+            for (int i = 0; i < 10; i++){
+                if (i > 0) Thread.Sleep(10);
+                if (get_index_pointer() == null)
+                    continue;
+                if (!Set_menu_selected_index(postion_x_index))
+                    continue;
+                if (Get_menu_selected_value() == null)
+                    continue;
+                return true; // all menu systems are working
+            }
+            return false;
+        }
+        private bool Await_color_menu_open(){
+            for (int i = 0; i < 10; i++){
+                if (i > 0) Thread.Sleep(10);
+                if (get_color_pointer() == null)
+                    continue;
+                return true; // all menu systems are working
+            }
+            return false;
+        }
+        private bool Await_value_menu_open(){
+            for (int i = 0; i < 10; i++){
+                if (i > 0) Thread.Sleep(10);
+                if (return_UI_value_window_ptr() != null)
+                    continue;
+                return true; // all menu systems are working
+            }
+            return false;
+        }
+        #endregion
+
+        #region AWAIT WINDOWS CLOSING
+        private bool Await_property_menu_close(){ // loop until the pointer is invalid
+            for (int i = 0; i < 10; i++){
+                if (i > 0) Thread.Sleep(10);
+                if (return_UI_property_window_ptr() != null)
+                    continue;
+                return true; // menu is no longer open
+            }
+            return false;
+        }
+        private bool Await_color_menu_close(){ // loop until the pointer is invalid
+            for (int i = 0; i < 10; i++){
+                if (i > 0) Thread.Sleep(10);
+                if (return_UI_color_window_ptr() != null)
+                    continue;
+                return true; // menu is no longer open
+            }
+            return false;
+        }
+        private bool Await_value_menu_close(){ // loop until the pointer is invalid
+            for (int i = 0; i< 10; i++){
+                if (i > 0) Thread.Sleep(10);
+                if (return_UI_value_window_ptr() != null)
+                    continue;
+                return true; // menu is no longer open
+            }
+            return false;
+        }
+        #endregion
+
+        #region AWAIT VALUE CHANGES
+        public float? selected_value = null;
+        private bool record_selected_value(){
+            float? value = Get_menu_selected_value();
+            if (value == null)
+                return false;
+            selected_value = value;
+            return true;
+        }
+        private bool Await_selected_value_change(){
+            if (selected_value == null)
+                return false; // logic error
+            for (int i = 0; i < 15; i++){
+                float? value = Get_menu_selected_value();
+                if (value == null) continue;
+                if (value == selected_value) continue;
+                selected_value = null; // value has changed, make sure recorded value is invalidated
+                return true;
+            } // if breaks, then failed
+            selected_value = null;
+            return false;
+        }
+        private int? selected_color = null;
+        private bool record_selected_color(){
+            int? index = Get_color_selected_index();
+            if (index == null)
+                return false;
+            selected_color = index;
+            return true;
+        }
+        private bool Await_selected_color_change(){
+            if (selected_color == null)
+                return false; // logic error
+            for (int i = 0; i < 15; i++){
+                int? index = Get_color_selected_index();
+                if (index == null) continue;
+                if (index == selected_color) continue;
+                selected_color = null; // value has changed, make sure recorded value is invalidated
+                return true;
+            } // if breaks, then failed
+            selected_color = null; 
+            return false;
+        }
+        private int? Get_color_selected_index(){
+            long? color_index_ptr = get_color_pointer();
+            if (color_index_ptr == null)
+                return null;
+            return cm.read_int32((long)color_index_ptr);
+        }
+        #endregion
 
         private bool DuplicateObject() => do_key_press(VirtualKeyCode.VK_D, true);
 
         #region PROPERTY WINDOW
         private bool Enable_property_menu(){
-            if (is_menu_open) return false; // failsafe for logic errors
-            if (!do_key_press(VirtualKeyCode.VK_R)) return false;
-            Thread.Sleep(50); // give time to open the menu
+            if (is_menu_open) 
+                return false; // failsafe for logic errors
+            if (!do_key_press(VirtualKeyCode.VK_R)) 
+                return false;
+            Thread.Sleep(100); // give time to open the menu
             // get the menu values, might need a longer wait
-            if (get_index_pointer() == null) return false;
+            if (!Await_property_menu_open()) 
+                return false;
             is_menu_open = true;
+            Thread.Sleep(20);
             return true;
         }
         private bool Disable_property_menu(){
-            if (!do_key_press(VirtualKeyCode.VK_R)) return false;
-            if (is_menu_open == false) return false; // failsafe for logic errors
+            if (is_menu_open == false) 
+                return false; // failsafe for logic errors
+            if (!do_key_press(VirtualKeyCode.VK_R))
+                return false;
+            if (!Await_property_menu_close())
+                return false;
             // flush the values
             is_menu_open = false;
             is_color_open = false;
@@ -227,83 +361,158 @@ namespace imaginator_halothousand.code_stuff{
             return true;
         }
         private bool navigate_and_assign_menu_value(int index, float value){
-            if (!Set_menu_selected_index(index)) return false;
-            Thread.Sleep(100);
-            if (!Apply_menu_selected_value(value)) return false;
+            if (!Set_menu_selected_index(index)) 
+                return false;
+            if (!Apply_menu_selected_value(value)) 
+                return false;
+            if (!Apply_menu_value()) 
+                return false;
             return true;
-        }
+        } // pos x,y,z
+        private bool navigate_and_open_close_assign_value(int index, float value){
+            if (!Set_menu_selected_index(index)) 
+                return false;
+            if (!Apply_menu_selected_value(value - 0.10f)) 
+                return false;
+            if (!do_key_press(VirtualKeyCode.RETURN)) 
+                return false;
+            if (!Await_value_menu_open())
+                return false;
+            Thread.Sleep(100); // extra time for the menu to open
+            // TODO: repeat loop here
+            if (!do_key_press(VirtualKeyCode.RETURN))
+                return false;
+            if (!Await_value_menu_close())
+                return false;
+            return true;
+        } // color intensity
         private bool Set_menu_selected_index(int index){
             long? index_ptr = get_index_pointer();
-            if (index_ptr == null) return false;
+            if (index_ptr == null) 
+                return false;
             // write value
-            if (!cm.write_int32((long)index_ptr, index)) return false;
+            if (!cm.write_int32((long)index_ptr, index)) 
+                return false;
+            Thread.Sleep(150); // time for the new selection to occur
             return true;
         }
-        private bool Apply_menu_selected_value(float new_val){ // we're going to need to do something different for the color intensity thing
+        private bool Apply_menu_selected_value(float new_val){
             long? value_ptr = get_value_pointer();
-            if (value_ptr == null) return false;
+            if (value_ptr == null) 
+                return false;
             // write value
-            if (!cm.write_float((long)value_ptr, new_val - 0.10f)) return false;
-            // then we use the right arrow key to actually apply it
-            Thread.Sleep(100);
-            if (!do_key_press(VirtualKeyCode.RIGHT)) return false;
+            if (!cm.write_float((long)value_ptr, new_val)) 
+                return false;
+            Thread.Sleep(100); // time for the value to update
+            return true;
+        }
+        private float? Get_menu_selected_value(){
+            long? value_ptr = get_value_pointer();
+            if (value_ptr == null) 
+                return null;
+            // write value
+            float? result = cm.read_float((long)value_ptr);
+            if (result == null) 
+                return null;
+            return result;
+        }
+
+        private bool Apply_menu_value(){
+            if (!record_selected_value())
+                return false;
+            if (!do_key_press(VirtualKeyCode.RIGHT)) 
+                return false;
+            if (!Await_selected_value_change())
+                return false;
+            Thread.Sleep(50); // time for the key input to register
             return true;
         }
         #endregion
 
         #region COLOR WINDOW
         private bool Enable_color_menu(){
-            if (is_menu_open == false) return false; // cant open color menu without property menu
-            if (is_color_open) return false; // failsafe check
-            if (!do_key_press(VirtualKeyCode.SPACE)) return false;
-            // get the color ptr address, might need a longer wait
+            if (is_menu_open == false) 
+                return false; // cant open color menu without property menu
+            if (is_color_open) 
+                return false; // failsafe check
+            if (!do_key_press(VirtualKeyCode.SPACE)) 
+                return false;
+            if (!Await_color_menu_open())
+                return false;
             Thread.Sleep(100);
-            if (get_color_pointer() == null) return false;
             is_color_open = true;
             return true;
         }
         private bool Disable_color_menu(){
-            if (is_menu_open == false) return false; // cant open color menu without property menu
-            if (is_color_open == false) return false; // failsafe check
-            if (!do_key_press(VirtualKeyCode.SPACE)) return false;
+            if (is_menu_open == false) 
+                return false; // cant open color menu without property menu
+            if (is_color_open == false) 
+                return false; // failsafe check
+            if (!do_key_press(VirtualKeyCode.SPACE)) 
+                return false;
+            if (!Await_color_menu_close())
+                return false;
             is_color_open = false;
             color_index_pointer = null;
-            Simulate.Keyboard.KeyPress(VirtualKeyCode.SPACE);
-            Thread.Sleep(5);
-            Simulate.Keyboard.KeyPress(VirtualKeyCode.SPACE);
             return true;
         }
         private bool Set_color_selected_index(int index){
             long? color_index_ptr = get_color_pointer();
-            if (color_index_ptr == null) return false;
-            Thread.Sleep(100);
-            if (!cm.write_int32((long)color_index_ptr, index)) return false;
+            if (color_index_ptr == null) 
+                return false;
+            Thread.Sleep(50); // time for window to open
+            if (!cm.write_int32((long)color_index_ptr, index)) 
+                return false;
+            Thread.Sleep(50); // time for value to set
+            if (!Apply_color_value(index))
+                return false;
+
+
+            return true;
+        }
+        private bool Apply_color_value(int index){
+            if (index < 8){ // first row
+                if (!Color_down())
+                    return false;
+                if (!Color_up())
+                    return false;
+            } else{
+                if (!Color_up())
+                    return false;
+                if (!Color_down())
+                    return false;
+            }
+            Thread.Sleep(50); // time the selection to settle
+            return true;
+        }
+        private bool Color_up(){
+            if (!record_selected_color())
+                return false;
+            if (!do_key_press(VirtualKeyCode.UP))
+                return false;
+            if (!Await_selected_color_change())
+                return false;
+            return true;
+        }
+        private bool Color_down(){
+            if (!record_selected_color())
+                return false;
+            if (!do_key_press(VirtualKeyCode.DOWN))
+                return false;
+            if (!Await_selected_color_change())
+                return false;
             return true;
         }
         #endregion
 
         private bool do_key_press(VirtualKeyCode key, bool ctrl = false){
-            if (!is_game_session_is_alive()) return false;
+            if (!is_game_session_is_alive()) 
+                return false;
             if (ctrl) Simulate.Keyboard.KeyPress(VirtualKeyCode.LCONTROL);
             Simulate.Keyboard.KeyPress(key);
-            Thread.Sleep(20);
             return is_game_session_is_alive();
         }
 
-
-        #region UNUSED STUFF
-        private void TriggerSave()
-        {
-            if (!is_game_session_is_alive()) return;
-
-            SetForegroundWindow(cm.hooked_process.MainWindowHandle);
-            cm.hooked_process.WaitForInputIdle();
-            Thread.Sleep(20);
-            Simulate.Keyboard.KeyPress(VirtualKeyCode.LCONTROL);
-            Simulate.Keyboard.KeyPress(VirtualKeyCode.VK_S);
-            Thread.Sleep(20);
-        }
-        #endregion
 
 
     }
