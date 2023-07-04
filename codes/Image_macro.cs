@@ -65,18 +65,16 @@ namespace imaginator_halothousand.code_stuff{
 
         // POINTERS 
         const string module_name = "HaloInfinite.exe";
-        const long   UI_array_size_offset  = 0x048089A8; // we dont actually really need this
+        const long   UI_array_size_offset  = 0x048089A8;
         const long   UI_array_start_offset = 0x04808AB0;
-
-        const long UI_element_signature_offset  = 0x10; // note this isn't actually a signature, its a floating point number and then an int, which we are using to differentiate UI windows
 
         int UI_property_menu_TAGID       = 0x3AEF69DB;
         int UI_color_menu_TAGID          = 0x2D9F2A06;
-        int UI_value_menu_TAGID          = 0x642CFE7F;
+        int UI_value_menu_TAGID          = 0x642CFE7F; // used for determining when color window has opened
 
-        long[] UI_index_ptr = new long[] { 0xC8,  0x378, 0xE44, 0x328, 0x1D0, 0xB8,  0x928 }; // property window
-        long[] UI_value_ptr = new long[] { 0xB88, 0xB08, 0x8C0, 0x8,   0x0,   0xFC         }; // property window
-        long[] UI_color_ptr = new long[] { 0xB88, 0x6C8, 0xA0,  0x5A8, 0x928               }; // color window
+        long[] UI_index_ptr = new long[] { 0xB88, 0x928                            }; // property window
+        long[] UI_value_ptr = new long[] { 0xB88, 0xB08, 0x8C0, 0x8,   0x0,   0xFC }; // property window
+        long[] UI_color_ptr = new long[] { 0xB88, 0x6C8, 0xA0,  0x5A8, 0x928       }; // color window
         long? return_UI_property_window_ptr() => return_UI_window_ptr(UI_property_menu_TAGID);
         long? return_UI_color_window_ptr()    => return_UI_window_ptr(UI_color_menu_TAGID);
         long? return_UI_value_window_ptr()    => return_UI_window_ptr(UI_value_menu_TAGID);
@@ -123,97 +121,133 @@ namespace imaginator_halothousand.code_stuff{
         #endregion
 
         // MAIN FUNCTIONS
-        public void begin_macro(mapped_object?[] pixels){
+
+        float global_scale = 1;
+        float global_X = 0;
+        float global_Y = 0;
+        float global_Z = 0;
+
+        public int pixel_index = 0;
+        IProgress<MainWindow.macro_progress> macro_progress;
+        public void begin_macro(List<mapped_object> pixels, float _scale, float x, float y, float z, IProgress<MainWindow.macro_progress> progress)
+        {
+
+            // configure intial values
+            global_scale = _scale;
+            global_X = x;
+            global_Y = y;
+            global_Z = z;
+            macro_progress = progress;
+
             // setup memory interface
             cm = new();
             if (!cm.hook_and_open_process("HaloInfinite")){
+                update_status("halo process not found", MainWindow.macro_state.aborted);
                 return; // failed
             }
             Halodll_address = cm.return_module_address_by_name(module_name);
             if (Halodll_address == -1L){
+                update_status("halo dll address not found", MainWindow.macro_state.aborted);
                 return; // failed
-            } 
+            }
 
             SetForegroundWindow(cm.hooked_process.MainWindowHandle);
             Thread.Sleep(500);
 
-            foreach (mapped_object? pixel in pixels){ // we're going to need the tile index for saving purposes
-                if (pixel == null) continue;
-                if (!create_pixel((mapped_object)pixel)){
+
+            for (pixel_index = 0; pixel_index < pixels.Count; pixel_index++){
+                mapped_object? current = pixels[pixel_index];
+                if (!create_pixel((mapped_object)current)){
+                    update_status("process aborted", MainWindow.macro_state.aborted);
                     return; // failed
                 }
-                Thread.Sleep(500);
             }
             last_step = "success";
+            update_status("process completed", MainWindow.macro_state.completed);
         }
         bool is_game_session_is_alive(){
             return (cm != null && cm.hooked_process != null && !cm.hooked_process.HasExited);
         }
 
+        public state restore_state = state.not_created; // for reseting pixel creation attempt
+        public enum state{
+            not_created = 0,
+            obj_created = 1,
+            obj_success = 2,
+        }
         public string last_step = "None";
+        private void update_status(string new_status, MainWindow.macro_state state){
+            last_step = new_status;
+            macro_progress.Report(new MainWindow.macro_progress { context = new_status, completed = pixel_index, state = state });
+        }
 
         bool create_pixel(mapped_object pixel){
-            last_step = "duplicating object";
+            update_status("duplicating object", MainWindow.macro_state.working);
             if (!DuplicateObject()) 
                 return false;
-            Thread.Sleep(350); // time for the object to spawn in
+            Thread.Sleep(400); // time for the object to spawn in
 
-            last_step = "openning menu";
+            update_status("openning menu", MainWindow.macro_state.working);
             if (!Enable_property_menu()) 
                 return false;
 
             // set pos x // update value
             for (int i = 0; i < 3; i++){
-                last_step = "pos x";
-                if (navigate_and_assign_menu_value(postion_x_index, (float)pixel.X)) break;
+                if (i == 0) update_status("pos x, attempt#" + i, MainWindow.macro_state.working);
+                else        update_status("pos x, attempt#" + i, MainWindow.macro_state.error);
+                if (navigate_and_assign_menu_value(postion_x_index, global_X)) break;
                 else if (i == 2) return false;
             }
 
             // set pos y // update value
             for (int i = 0; i < 3; i++){
-                last_step = "pos y";
-                if (navigate_and_assign_menu_value(postion_y_index, (float)pixel.Y)) break;
+                if (i == 0) update_status("pos y, attempt#" + i, MainWindow.macro_state.working);
+                else        update_status("pos y, attempt#" + i, MainWindow.macro_state.error);
+                if (navigate_and_assign_menu_value(postion_y_index, global_Y + ((float)pixel.X * global_scale))) break;
                 else if (i == 2) return false;
             }
 
             // set pos z // update value
             for (int i = 0; i < 3; i++){
-                last_step = "pos z";
-                if (navigate_and_assign_menu_value(postion_z_index, (float)pixel.Z)) break;
+                if (i == 0) update_status("pos z, attempt#" + i, MainWindow.macro_state.working);
+                else        update_status("pos z, attempt#" + i, MainWindow.macro_state.error);
+                if (navigate_and_assign_menu_value(postion_z_index, global_Z - ((float)pixel.Y * global_scale))) break;
                 else if(i == 2) return false;
             }
+            Thread.Sleep(50);
 
             // goto color element
-            last_step = "going to color";
+            update_status("going to color", MainWindow.macro_state.working);
             if (!Set_menu_selected_index(color_index)) 
                 return false;
-            Thread.Sleep(50);
+
             // open color element
-            last_step = "openning color";
+            update_status("openning color", MainWindow.macro_state.working);
             if (!Enable_color_menu()) 
                 return false;
-            Thread.Sleep(100);
+
             // set color
-            last_step = "setting color";
+            update_status("setting color index " + pixel.color_index, MainWindow.macro_state.working);
             if (!Set_color_selected_index(pixel.color_index)) 
                 return false;
-            Thread.Sleep(50);
+
             // close color element
-            last_step = "closing color";
+            update_status("closing color", MainWindow.macro_state.working);
             if (!Disable_color_menu()) 
                 return false;
-            Thread.Sleep(100);
+            //Thread.Sleep(20);
+
             // set color intensity
-            last_step = "color intensity";
+            update_status("color intensity " + (float)pixel.intensity_index / 100, MainWindow.macro_state.working);
             if (!navigate_and_open_close_assign_value(intensity_index, (float)pixel.intensity_index / 100)) 
                 return false;
-            Thread.Sleep(500);
+            Thread.Sleep(20);
 
             // close panel
-            last_step = "closing menu";
+            update_status("closing menu", MainWindow.macro_state.working);
             if (!Disable_property_menu()) 
                 return false;
-            Thread.Sleep(500);
+            //Thread.Sleep(50);
 
             return true;
         }
@@ -221,7 +255,7 @@ namespace imaginator_halothousand.code_stuff{
 
         #region AWAIT WINDOWS OPEN
         private bool Await_property_menu_open(){ // loop until menu values are readable
-            for (int i = 0; i < 10; i++){
+            for (int i = 0; i < 50; i++){
                 if (i > 0) Thread.Sleep(10);
                 if (get_index_pointer() == null)
                     continue;
@@ -234,7 +268,7 @@ namespace imaginator_halothousand.code_stuff{
             return false;
         }
         private bool Await_color_menu_open(){
-            for (int i = 0; i < 10; i++){
+            for (int i = 0; i < 50; i++){
                 if (i > 0) Thread.Sleep(10);
                 if (get_color_pointer() == null)
                     continue;
@@ -243,9 +277,9 @@ namespace imaginator_halothousand.code_stuff{
             return false;
         }
         private bool Await_value_menu_open(){
-            for (int i = 0; i < 10; i++){
+            for (int i = 0; i < 50; i++){
                 if (i > 0) Thread.Sleep(10);
-                if (return_UI_value_window_ptr() != null)
+                if (return_UI_value_window_ptr() == null)
                     continue;
                 return true; // all menu systems are working
             }
@@ -255,7 +289,7 @@ namespace imaginator_halothousand.code_stuff{
 
         #region AWAIT WINDOWS CLOSING
         private bool Await_property_menu_close(){ // loop until the pointer is invalid
-            for (int i = 0; i < 20; i++){
+            for (int i = 0; i < 50; i++){
                 if (i > 0) Thread.Sleep(10);
                 if (return_UI_property_window_ptr() != null)
                     continue;
@@ -264,7 +298,7 @@ namespace imaginator_halothousand.code_stuff{
             return false;
         }
         private bool Await_color_menu_close(){ // loop until the pointer is invalid
-            for (int i = 0; i < 20; i++){
+            for (int i = 0; i < 50; i++){
                 if (i > 0) Thread.Sleep(10);
                 if (return_UI_color_window_ptr() != null)
                     continue;
@@ -273,7 +307,7 @@ namespace imaginator_halothousand.code_stuff{
             return false;
         }
         private bool Await_value_menu_close(){ // loop until the pointer is invalid
-            for (int i = 0; i< 20; i++){
+            for (int i = 0; i< 50; i++){
                 if (i > 0) Thread.Sleep(10);
                 if (return_UI_value_window_ptr() != null)
                     continue;
@@ -295,9 +329,9 @@ namespace imaginator_halothousand.code_stuff{
         private bool Await_selected_value_change(){
             if (selected_value == null)
                 return false; // logic error
-            Thread.Sleep(100);
-            for (int i = 0; i < 15; i++){
-                if (i > 0) Thread.Sleep(15);
+            //Thread.Sleep(20);
+            for (int i = 0; i < 40; i++){
+                if (i > 0) Thread.Sleep(5);
                 float? value = Get_menu_selected_value();
                 if (value == null) continue;
                 if (value == selected_value) continue;
@@ -350,7 +384,7 @@ namespace imaginator_halothousand.code_stuff{
             if (!Await_property_menu_open()) 
                 return false;
             is_menu_open = true;
-            Thread.Sleep(20);
+            Thread.Sleep(75);
             return true;
         }
         private bool Disable_property_menu(){
@@ -383,20 +417,9 @@ namespace imaginator_halothousand.code_stuff{
                 return false;
             if (!Apply_menu_selected_value(value)) 
                 return false;
-            if (!do_key_press(VirtualKeyCode.RETURN)) 
+            if (!Enter_apply_menu_value())
                 return false;
-            if (!Await_value_menu_open())
-                return false;
-            Thread.Sleep(150); // extra time for the menu to open
-            // TODO: repeat loop here
-            for (int i = 0; i < 5; i++){
-                if (!do_key_press(VirtualKeyCode.RETURN))
-                    return false;
-                Thread.Sleep(250); // extra time for the menu to open
-                if (Await_value_menu_close()) break;
-                else if (i == 4) 
-                    return false;
-            }
+
             return true;
         } // color intensity
         private bool Set_menu_selected_index(int index){
@@ -406,7 +429,7 @@ namespace imaginator_halothousand.code_stuff{
             // write value
             if (!cm.write_int32((long)index_ptr, index)) 
                 return false;
-            Thread.Sleep(250); // time for the new selection to occur
+            Thread.Sleep(20); // time for the new selection to occur
             return true;
         }
         private bool Apply_menu_selected_value(float new_val){
@@ -416,7 +439,7 @@ namespace imaginator_halothousand.code_stuff{
             // write value
             if (!cm.write_float((long)value_ptr, new_val)) 
                 return false;
-            Thread.Sleep(150); // time for the value to update
+            Thread.Sleep(20); // time for the value to update
             return true;
         }
         private float? Get_menu_selected_value(){
@@ -431,15 +454,30 @@ namespace imaginator_halothousand.code_stuff{
         }
 
         private bool Apply_menu_value(){
-            if (!record_selected_value())
-                return false;
-            Thread.Sleep(75); // time for recorded value to register?
+            //if (!record_selected_value())
+            //    return false;
+            //Thread.Sleep(20); // time for recorded value to register?
             if (!do_key_press(VirtualKeyCode.RIGHT)) 
                 return false;
-            Thread.Sleep(75); // time for the key input to register
-            if (!Await_selected_value_change())
+            Thread.Sleep(300); // time for the key input to register
+            //if (!Await_selected_value_change())
+            //    return false;
+            return true;
+        }
+        private bool Enter_apply_menu_value(){
+            if (!do_key_press(VirtualKeyCode.RETURN))
                 return false;
-            Thread.Sleep(75); 
+            if (!Await_value_menu_open())
+                return false;
+            Thread.Sleep(50); // extra time for the menu to open
+            for (int i = 0; i < 5; i++){
+                if (!do_key_press(VirtualKeyCode.RETURN))
+                    return false;
+                Thread.Sleep(20); // time for input to register
+                if (Await_value_menu_close()) break;
+                else if (i == 4)
+                    return false;
+            }
             return true;
         }
         #endregion
@@ -454,7 +492,7 @@ namespace imaginator_halothousand.code_stuff{
                 return false;
             if (!Await_color_menu_open())
                 return false;
-            Thread.Sleep(100);
+            Thread.Sleep(50);
             is_color_open = true;
             return true;
         }
@@ -475,10 +513,9 @@ namespace imaginator_halothousand.code_stuff{
             long? color_index_ptr = get_color_pointer();
             if (color_index_ptr == null) 
                 return false;
-            Thread.Sleep(50); // time for window to open
             if (!cm.write_int32((long)color_index_ptr, index)) 
                 return false;
-            Thread.Sleep(50); // time for value to set
+            Thread.Sleep(20); // time for value to set
             if (!Apply_color_value(index))
                 return false;
 
@@ -497,16 +534,16 @@ namespace imaginator_halothousand.code_stuff{
                 if (!Color_down())
                     return false;
             }
-            Thread.Sleep(50); // time the selection to settle
+            Thread.Sleep(20); // time the selection to settle
             return true;
         }
         private bool Color_up(){
             if (!record_selected_color())
                 return false;
-            Thread.Sleep(50);
+            Thread.Sleep(20);
             if (!do_key_press(VirtualKeyCode.UP))
                 return false;
-            Thread.Sleep(50);
+            //Thread.Sleep(20);
             if (!Await_selected_color_change())
                 return false;
             return true;
@@ -514,10 +551,10 @@ namespace imaginator_halothousand.code_stuff{
         private bool Color_down(){
             if (!record_selected_color())
                 return false;
-            Thread.Sleep(50);
+            Thread.Sleep(20);
             if (!do_key_press(VirtualKeyCode.DOWN))
                 return false;
-            Thread.Sleep(50);
+            //Thread.Sleep(20);
             if (!Await_selected_color_change())
                 return false;
             return true;
@@ -528,16 +565,12 @@ namespace imaginator_halothousand.code_stuff{
             if (!is_game_session_is_alive()) 
                 return false;
 
-            SetForegroundWindow(cm.hooked_process.MainWindowHandle); // fix it
+            //SetForegroundWindow(cm.hooked_process.MainWindowHandle); // fix it
+            if (ctrl) Simulate.Keyboard.KeyDown(VirtualKeyCode.LCONTROL);
+            Simulate.Keyboard.KeyPress(key);
 
-            if (ctrl) Simulate.Keyboard.KeyPress(VirtualKeyCode.LCONTROL);
-            Simulate.Keyboard.KeyDown(key);
-            Thread.Sleep(10);
-            Simulate.Keyboard.KeyUp(key);
-            Thread.Sleep(10);
-            Simulate.Keyboard.KeyUp(key);
-            Thread.Sleep(10);
-            Simulate.Keyboard.KeyUp(key);
+            if (ctrl) Simulate.Keyboard.KeyUp(VirtualKeyCode.LCONTROL);
+
             return is_game_session_is_alive();
         }
 

@@ -14,6 +14,7 @@ using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
 using System.Windows.Shapes;
+using System.Windows.Threading;
 using imaginator_halothousand.code_stuff;
 using static imaginator_halothousand.code_stuff.ImageArrayifier;
 
@@ -35,15 +36,18 @@ namespace imaginator_halothousand{
 
             if (ofd.ShowDialog() == true){
 
-                ImageArrayifier new_imagator = new ImageArrayifier(4.0, 0.0, 50.0, 550.0);
-                image_instructions = new_imagator.pixel_queue(ofd.FileName, true);
+                ImageArrayifier new_imagator = new ImageArrayifier();
+                image_instructions = new_imagator.pixel_queue(ofd.FileName);
 
-                Print("color converted with " + Math.Round(image_instructions.image_accuracy * 100.0, 4) + "% accuracy");
+                Print("color converted with " + Math.Round(image_instructions.image_accuracy * 100.0, 4) + "% accuracy, " + image_instructions.visible_pixel_count + " pixels in that image to be created");
 
                 // display the comparison images
                 og_image.Source   = BitmapToImageSource(image_instructions.source_img);
                 demo_image.Source = BitmapToImageSource(image_instructions.visualized_img);
 
+                ui_pixel_count.Text = image_instructions.pixel_count.ToString();
+                ui_pixels_opaque.Text = image_instructions.visible_pixel_count.ToString();
+                ui_accuracy.Text = image_instructions.image_accuracy.ToString();
                 // functionality to output image for testing purposes
                 //image_instructions.visualized_img.Save("C:\\Users\\Joe bingle\\Downloads\\IFIMT research\\output.png", System.Drawing.Imaging.ImageFormat.Png);
             }
@@ -62,17 +66,108 @@ namespace imaginator_halothousand{
             }
         }
 
+        bool is_running_macro = false;
         private void Run_Macro(object sender, RoutedEventArgs e){
-            if (image_instructions == null || image_instructions.pixels == null) return;
+            if (image_instructions == null || image_instructions.pixels == null || is_running_macro) return;
 
-            Image_macro image_maker = new Image_macro();
-            image_maker.begin_macro(image_instructions.pixels);
-            Print(image_maker.last_step);
+
+            float? coord_x = try_parse_textbox_text(ui_coord_x);
+            float? coord_y = try_parse_textbox_text(ui_coord_y);
+            float? coord_z = try_parse_textbox_text(ui_coord_z);
+            float? coord_scale = try_parse_textbox_text(ui_coord_scale);
+            if (coord_x == null || coord_y == null || coord_z == null || coord_scale == null){
+                Print("coords failed to configure, please enter the ingame coords into the left side panel");
+                return;
+            }
+            ui_coord_x.IsEnabled = false;
+            ui_coord_y.IsEnabled = false;
+            ui_coord_z.IsEnabled = false;
+            ui_coord_scale.IsEnabled = false;
+
+
+
+            ui_progressbar.Value = 0;
+            ui_progressbar.Maximum = image_instructions.visible_pixel_count;
+            ui_completion.Text = "0/" + image_instructions.visible_pixel_count;
+            is_running_macro = true;
+            initiate_macro_task(image_instructions.pixels, (float)coord_scale, (float)coord_x, (float)coord_y, (float)coord_z);
+
+        }
+        private void ended_macro(){
+            if (is_running_macro == false) return; // this was probably called by the fallback call, where we weren't reported that it ended
+            ui_coord_x.IsEnabled = true;
+            ui_coord_y.IsEnabled = true;
+            ui_coord_z.IsEnabled = true;
+            ui_coord_scale.IsEnabled = true;
+            is_running_macro = false;
+            stop_timer();
+        }
+        float? try_parse_textbox_text(TextBox box){
+            try{float return_ = float.Parse(box.Text);
+                return_ = (float)Math.Round(return_, 1);
+                box.Text = return_.ToString();
+                return return_;
+            }catch{return null;}
         }
 
 
-        private void Print(string text){
+        public void Print(string text){
             status.Text = "Status: " + text;
         }
+
+
+        #region MACRO TASK
+        public enum macro_state{
+            working,
+            error,
+            aborted,
+            completed
+        }
+        public struct macro_progress{
+            public string context;
+            public int completed;
+            public macro_state state;
+        }
+        async void initiate_macro_task(List<mapped_object> pixels, float coord_scale, float coord_x, float coord_y, float coord_z){
+            IProgress<macro_progress> progress = new Progress<macro_progress>(call_back_progress); // i believe we put the function in here
+            Image_macro image_maker = new Image_macro();
+            start_timer();
+            await Task.Run(() => image_maker.begin_macro(pixels, coord_scale, coord_x, coord_y, coord_z, progress));
+            ended_macro();
+        }
+        #region TIMER
+        DispatcherTimer? macro_timer;
+        DateTime? macro_start;
+        private void start_timer(){
+            macro_timer = new DispatcherTimer(new TimeSpan(0, 0, 0, 0, 50), DispatcherPriority.Background, macro_timer_tick, Dispatcher.CurrentDispatcher); 
+            macro_timer.Start();
+            macro_start = DateTime.Now;
+        }
+        private void stop_timer() {
+            if (macro_timer == null) return;
+            macro_timer.Stop();
+            macro_timer.Tick -= macro_timer_tick; // unsubscribe from timer's ticks
+            macro_timer = null;
+            macro_start = null;
+        }
+        private void macro_timer_tick(object? sender, EventArgs e){
+            ui_time.Text = Convert.ToString(DateTime.Now - macro_start);
+        }
+        #endregion
+        public void call_back_progress(macro_progress progress_results){
+            if (image_instructions == null) return; // this should never happen
+            ui_completion.Text = progress_results.completed + "/" + image_instructions.pixels.Count;
+            ui_progressbar.Value = progress_results.completed;
+            Print(progress_results.context);
+
+            if (progress_results.state == macro_state.completed){
+                // close the operation
+                ended_macro();
+            } else if (progress_results.state == macro_state.aborted){
+                // close the operation
+                ended_macro();
+            }
+        }
+        #endregion
     }
 }

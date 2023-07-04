@@ -179,16 +179,6 @@ namespace imaginator_halothousand.code_stuff
 
 
         // adding this incase there is ever a need to scale the pixels spacing aswell
-        public ImageArrayifier(double _scale, double x, double y, double z){
-            scale    = _scale;
-            global_X = x;
-            global_Y = y;
-            global_Z = z;
-        }
-        double scale = 1;
-        double global_X = 0;
-        double global_Y = 0;
-        double global_Z = 0;
 
 
         public struct mapped_object{
@@ -196,17 +186,17 @@ namespace imaginator_halothousand.code_stuff
             public int intensity_index;
             public double X;
             public double Y;
-            public double Z;
         }
         
         public class return_object{
             public Bitmap? source_img;
             public Bitmap? visualized_img;
 
-            public mapped_object?[]? pixels;
+            public List<mapped_object> pixels;
             public string? output_message;
             public int pixel_count;
-            public double image_accuracy;
+            public int visible_pixel_count;
+            public double image_accuracy = 0.0f;
             
 
         }
@@ -214,7 +204,7 @@ namespace imaginator_halothousand.code_stuff
         public return_object result = new ();
 
 
-        public return_object pixel_queue(string file_directory, bool build_vertical){
+        public return_object pixel_queue(string file_directory){
 
             result.source_img = new Bitmap(file_directory);
             result.visualized_img = new Bitmap(file_directory);
@@ -222,7 +212,8 @@ namespace imaginator_halothousand.code_stuff
             build_intensity_table(); // only needed in intensity consideration
 
             result.pixel_count = result.source_img.Width * result.source_img.Height;
-            result.pixels = new mapped_object?[result.pixel_count];
+            result.pixels = new List<mapped_object>();
+            result.visible_pixel_count = result.pixel_count;
 
             int curr_pixel = 0;
             for (int x=0; x < result.source_img.Width; x++){
@@ -230,8 +221,10 @@ namespace imaginator_halothousand.code_stuff
                     // check if pixel is transparent, if so skip it
                     Color pixel = result.source_img.GetPixel(x, y);
                     if (pixel.A == 0) {
-                        result.pixels[curr_pixel] = null;
                         curr_pixel++;
+                        result.visible_pixel_count--;
+                        result.image_accuracy += 1.0 / result.pixel_count;
+                        result.visualized_img.SetPixel(x, y, Color.FromArgb(0xFF, 0x00, 0x00));
                         continue;
                     }
 
@@ -241,8 +234,7 @@ namespace imaginator_halothousand.code_stuff
                     result.visualized_img.SetPixel(x, y, color_by_intensity_list_index(color_index.Key, color_index.Value));
 
 
-                    if (!build_vertical) result.pixels[curr_pixel] = new mapped_object { color_index = color_index.Key, intensity_index = color_index.Value, X = global_X+(x*scale), Y = global_Y+(y*scale), Z = global_Z          };
-                    else                 result.pixels[curr_pixel] = new mapped_object { color_index = color_index.Key, intensity_index = color_index.Value, X = global_X+(x*scale), Y = global_Y,           Z = global_Z+(y*scale)};
+                    result.pixels.Add(new mapped_object { color_index = color_index.Key, intensity_index = color_index.Value, X = x, Y = y });
                     curr_pixel++;
                 }
             }
@@ -282,8 +274,8 @@ namespace imaginator_halothousand.code_stuff
         void build_intensity_table(){
             for (int i = 0; i < color_list.Length / 3; i++){ // my c sharp brothers in christ, why does length tell me the length OF THE WHOLE THING
                 float r = color_list[i, 0];
-                float b = color_list[i, 1];
-                float g = color_list[i, 2];
+                float g = color_list[i, 1];
+                float b = color_list[i, 2];
 
                 for (int intensity = 0; intensity <= 100; intensity++){
                     float intensity_f = (float)intensity / 100;
@@ -314,8 +306,8 @@ namespace imaginator_halothousand.code_stuff
 
         KeyValuePair<int, int> get_index_and_intensity_of_closest_color(Color og_color){
             float r = color_as_float(og_color.R);
-            float b = color_as_float(og_color.G);
-            float g = color_as_float(og_color.B);
+            float g = color_as_float(og_color.G);
+            float b = color_as_float(og_color.B);
 
             int closest_palette_index = 0;
             int closest_intensity_index = 0;
@@ -325,8 +317,8 @@ namespace imaginator_halothousand.code_stuff
 
                 for (int intensity = 0; intensity <= 100; intensity++){
                     float i_r = intensity_color_list[i, intensity, 0];
-                    float i_b = intensity_color_list[i, intensity, 1];
-                    float i_g = intensity_color_list[i, intensity, 2];
+                    float i_g = intensity_color_list[i, intensity, 1];
+                    float i_b = intensity_color_list[i, intensity, 2];
 
                     float distance = float_rb_dist(r, i_r) + float_rb_dist(g, i_g) + float_rb_dist(b, i_b);
                     if (closest_match_distance == null || distance < closest_match_distance){
@@ -336,13 +328,9 @@ namespace imaginator_halothousand.code_stuff
                     }
                 }
             }
-            if (closest_match_distance > 0.5)
-            {
-                float i_r = intensity_color_list[closest_palette_index, closest_intensity_index, 0];
-                float i_b = intensity_color_list[closest_palette_index, closest_intensity_index, 1];
-                float i_g = intensity_color_list[closest_palette_index, closest_intensity_index, 2];
-                Console.WriteLine("dooty breakpoint test");
-            }
+            float _i_r = intensity_color_list[closest_palette_index, closest_intensity_index, 0];
+            float _i_g = intensity_color_list[closest_palette_index, closest_intensity_index, 1];
+            float _i_b = intensity_color_list[closest_palette_index, closest_intensity_index, 2];
             // calculate accuracy
             result.image_accuracy += (1.0 - ((double)closest_match_distance / 3.0)) / result.pixel_count;
             return new KeyValuePair<int, int> (closest_palette_index, closest_intensity_index);
@@ -361,7 +349,7 @@ namespace imaginator_halothousand.code_stuff
         #endregion
 
         float color_as_float(byte color){
-            return (float)color / 255;
+            return (float)color / 255f;
         }
 
     }
