@@ -25,6 +25,8 @@ namespace imaginator_halothousand{
     public partial class MainWindow : Window{
         public MainWindow(){
             InitializeComponent();
+            populate_texturesbox();
+            populate_observable_texturesbox();
         }
 
 
@@ -37,7 +39,8 @@ namespace imaginator_halothousand{
             if (ofd.ShowDialog() == true){
 
                 ImageArrayifier new_imagator = new ImageArrayifier();
-                image_instructions = new_imagator.pixel_queue(ofd.FileName);
+                bool is_observable_mode = (observable_checkbox.IsChecked == true);
+                image_instructions = new_imagator.pixel_queue(ofd.FileName, is_observable_mode, is_observable_mode? ui_observable_textures.SelectedIndex : ui_textures.SelectedIndex);
 
                 Print("color converted with " + Math.Round(image_instructions.image_accuracy * 100.0, 4) + "% accuracy, " + image_instructions.visible_pixel_count + " pixels in that image to be created");
 
@@ -65,6 +68,37 @@ namespace imaginator_halothousand{
                 return bitmapimage;
             }
         }
+        #region UI STUFF
+
+        private void CheckBox_Click(object sender, RoutedEventArgs e){
+            if (observable_checkbox.IsChecked == true){
+                ui_textures.Visibility = Visibility.Collapsed;
+                ui_observable_textures.Visibility = Visibility.Visible;
+            }else{
+                ui_textures.Visibility = Visibility.Visible;
+                ui_observable_textures.Visibility = Visibility.Collapsed;
+        }}
+        private void populate_texturesbox(){
+            ui_textures.Items.Clear();
+            foreach (var item in ImageArrayifier.textures){
+                ComboBoxItem cb_i = new ComboBoxItem();
+                cb_i.Content = item.name + " (" + item.color + ")";
+                ui_textures.Items.Add(cb_i);
+            }
+            ui_textures.SelectedIndex = 0;
+        }
+        private void populate_observable_texturesbox(){
+            ui_observable_textures.Items.Clear();
+            foreach (var item in ImageArrayifier.observed_textures){
+                ComboBoxItem cb_i = new ComboBoxItem();
+                cb_i.Content = item.name + " (" + item.color + ")";
+                ui_observable_textures.Items.Add(cb_i);
+            }
+            ui_observable_textures.SelectedIndex = 0;
+        }
+
+
+        #endregion
 
         bool is_running_macro = false;
         private void Run_Macro(object sender, RoutedEventArgs e){
@@ -169,5 +203,6 @@ namespace imaginator_halothousand{
             }
         }
         #endregion
+
     }
 }

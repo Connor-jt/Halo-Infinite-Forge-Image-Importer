@@ -22,7 +22,6 @@ namespace imaginator_halothousand.code_stuff{
 
         // VARIABLES
         private CMem? cm;
-        public static InputSimulator Simulate = new InputSimulator();
 
         long Halodll_address = -1L;
 
@@ -129,9 +128,7 @@ namespace imaginator_halothousand.code_stuff{
 
         public int pixel_index = 0;
         IProgress<MainWindow.macro_progress> macro_progress;
-        public void begin_macro(List<mapped_object> pixels, float _scale, float x, float y, float z, IProgress<MainWindow.macro_progress> progress)
-        {
-
+        public void begin_macro(List<mapped_object> pixels, float _scale, float x, float y, float z, IProgress<MainWindow.macro_progress> progress){
             // configure intial values
             global_scale = _scale;
             global_X = x;
@@ -173,7 +170,7 @@ namespace imaginator_halothousand.code_stuff{
         public enum state{
             not_created = 0,
             obj_created = 1,
-            obj_success = 2,
+
         }
         public string last_step = "None";
         private void update_status(string new_status, MainWindow.macro_state state){
@@ -182,20 +179,23 @@ namespace imaginator_halothousand.code_stuff{
         }
 
         bool create_pixel(mapped_object pixel){
+            restore_state = state.not_created;
             update_status("duplicating object", MainWindow.macro_state.working);
             if (!DuplicateObject()) 
                 return false;
-            Thread.Sleep(400); // time for the object to spawn in
+            Thread.Sleep(300); // time for the object to spawn in
+            restore_state = state.obj_created; // theres really no way with the current pointers to confirm this though
 
             update_status("openning menu", MainWindow.macro_state.working);
             if (!Enable_property_menu()) 
                 return false;
 
+
             // set pos x // update value
             for (int i = 0; i < 3; i++){
                 if (i == 0) update_status("pos x, attempt#" + i, MainWindow.macro_state.working);
                 else        update_status("pos x, attempt#" + i, MainWindow.macro_state.error);
-                if (navigate_and_assign_menu_value(postion_x_index, global_X)) break;
+                if (navigate_and_assign_menu_value(postion_y_index, global_Y + ((float)pixel.X * global_scale))) break;
                 else if (i == 2) return false;
             }
 
@@ -203,7 +203,8 @@ namespace imaginator_halothousand.code_stuff{
             for (int i = 0; i < 3; i++){
                 if (i == 0) update_status("pos y, attempt#" + i, MainWindow.macro_state.working);
                 else        update_status("pos y, attempt#" + i, MainWindow.macro_state.error);
-                if (navigate_and_assign_menu_value(postion_y_index, global_Y + ((float)pixel.X * global_scale))) break;
+                //if (navigate_and_assign_menu_value(postion_x_index, global_X)) break;
+                if (navigate_and_open_close_assign_value(postion_x_index, global_X)) break;
                 else if (i == 2) return false;
             }
 
@@ -371,26 +372,26 @@ namespace imaginator_halothousand.code_stuff{
         }
         #endregion
 
-        private bool DuplicateObject() => do_key_press(VirtualKeyCode.VK_D, true);
+        private bool DuplicateObject() => do_key_press(VKey.VK_D, true);
 
         #region PROPERTY WINDOW
         private bool Enable_property_menu(){
             if (is_menu_open) 
                 return false; // failsafe for logic errors
-            if (!do_key_press(VirtualKeyCode.VK_R)) 
+            if (!do_key_press(VKey.VK_R)) 
                 return false;
             Thread.Sleep(100); // give time to open the menu
             // get the menu values, might need a longer wait
             if (!Await_property_menu_open()) 
                 return false;
             is_menu_open = true;
-            Thread.Sleep(75);
+            Thread.Sleep(100);
             return true;
         }
         private bool Disable_property_menu(){
             if (is_menu_open == false) 
                 return false; // failsafe for logic errors
-            if (!do_key_press(VirtualKeyCode.VK_R))
+            if (!do_key_press(VKey.VK_R))
                 return false;
             if (!Await_property_menu_close())
                 return false;
@@ -419,7 +420,6 @@ namespace imaginator_halothousand.code_stuff{
                 return false;
             if (!Enter_apply_menu_value())
                 return false;
-
             return true;
         } // color intensity
         private bool Set_menu_selected_index(int index){
@@ -454,24 +454,24 @@ namespace imaginator_halothousand.code_stuff{
         }
 
         private bool Apply_menu_value(){
-            //if (!record_selected_value())
-            //    return false;
-            //Thread.Sleep(20); // time for recorded value to register?
-            if (!do_key_press(VirtualKeyCode.RIGHT)) 
+            if (!record_selected_value())
                 return false;
-            Thread.Sleep(300); // time for the key input to register
+            //Thread.Sleep(20); // time for recorded value to register?
+            if (!do_key_press(VKey.RIGHT)) 
+                return false;
+            Thread.Sleep(20); // time for the key input to register
             //if (!Await_selected_value_change())
             //    return false;
             return true;
         }
         private bool Enter_apply_menu_value(){
-            if (!do_key_press(VirtualKeyCode.RETURN))
+            if (!do_key_press(VKey.RETURN))
                 return false;
             if (!Await_value_menu_open())
                 return false;
             Thread.Sleep(50); // extra time for the menu to open
             for (int i = 0; i < 5; i++){
-                if (!do_key_press(VirtualKeyCode.RETURN))
+                if (!do_key_press(VKey.RETURN))
                     return false;
                 Thread.Sleep(20); // time for input to register
                 if (Await_value_menu_close()) break;
@@ -488,7 +488,7 @@ namespace imaginator_halothousand.code_stuff{
                 return false; // cant open color menu without property menu
             if (is_color_open) 
                 return false; // failsafe check
-            if (!do_key_press(VirtualKeyCode.SPACE)) 
+            if (!do_key_press(VKey.SPACE)) 
                 return false;
             if (!Await_color_menu_open())
                 return false;
@@ -501,7 +501,7 @@ namespace imaginator_halothousand.code_stuff{
                 return false; // cant open color menu without property menu
             if (is_color_open == false) 
                 return false; // failsafe check
-            if (!do_key_press(VirtualKeyCode.SPACE)) 
+            if (!do_key_press(VKey.SPACE)) 
                 return false;
             if (!Await_color_menu_close())
                 return false;
@@ -541,7 +541,7 @@ namespace imaginator_halothousand.code_stuff{
             if (!record_selected_color())
                 return false;
             Thread.Sleep(20);
-            if (!do_key_press(VirtualKeyCode.UP))
+            if (!do_key_press(VKey.UP))
                 return false;
             //Thread.Sleep(20);
             if (!Await_selected_color_change())
@@ -552,7 +552,7 @@ namespace imaginator_halothousand.code_stuff{
             if (!record_selected_color())
                 return false;
             Thread.Sleep(20);
-            if (!do_key_press(VirtualKeyCode.DOWN))
+            if (!do_key_press(VKey.DOWN))
                 return false;
             //Thread.Sleep(20);
             if (!Await_selected_color_change())
@@ -561,15 +561,18 @@ namespace imaginator_halothousand.code_stuff{
         }
         #endregion
 
-        private bool do_key_press(VirtualKeyCode key, bool ctrl = false){
+        private bool do_key_press(VKey key, bool ctrl = false){
             if (!is_game_session_is_alive()) 
                 return false;
 
-            //SetForegroundWindow(cm.hooked_process.MainWindowHandle); // fix it
-            if (ctrl) Simulate.Keyboard.KeyDown(VirtualKeyCode.LCONTROL);
-            Simulate.Keyboard.KeyPress(key);
-
-            if (ctrl) Simulate.Keyboard.KeyUp(VirtualKeyCode.LCONTROL);
+            if (ctrl){
+                KSim.KeyDown(VKey.LCONTROL);
+                Thread.Sleep(10);
+                KSim.KeyPress(key);
+                Thread.Sleep(10);
+                KSim.KeyUp(VKey.LCONTROL);
+            }
+            else KSim.KeyPress(key);                
 
             return is_game_session_is_alive();
         }

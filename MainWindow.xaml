@@ -55,6 +55,23 @@
                     </Grid>
                     <Rectangle Height="1" Fill="#FFA0A0A0" Margin="3,5,3,25" />
                     <Grid>
+                        <TextBlock Text="start index:" Foreground="White" Margin="0,0,10,0"/>
+                        <TextBox x:Name="ui_start" Text="0" Foreground="Black" HorizontalAlignment="Right" Width="60"/>
+                    </Grid>
+                    <Grid>
+                        <TextBlock Text="selected pixels:" Foreground="White" Margin="0,0,10,0"/>
+                        <TextBlock x:Name="ui_selected" Text="0" Foreground="#FF8800FF" HorizontalAlignment="Right"/>
+                    </Grid>
+
+                    <Rectangle Height="1" Fill="#FFA0A0A0" Margin="3,5,3,25" />
+                    <CheckBox x:Name="observable_checkbox"  Content="refer to observed colors" Foreground="White" Margin="0,0,10,0" Click="CheckBox_Click"/>
+                    <TextBlock Text="base texture:" Foreground="White" Margin="0,0,10,0" VerticalAlignment="Center"/>
+                    <ComboBox  x:Name="ui_textures"/>
+                    <ComboBox Visibility="Collapsed" x:Name="ui_observable_textures"/>
+
+
+                    <Rectangle Height="1" Fill="#FFA0A0A0" Margin="3,5,3,25" />
+                    <Grid>
                         <TextBlock Text="progress:" Foreground="White" Margin="0,0,10,0"/>
                         <TextBlock x:Name="ui_completion" Text="0/0" Foreground="#FF8800FF" HorizontalAlignment="Right"/>
                     </Grid>
@@ -90,6 +107,7 @@
             <StackPanel Orientation="Horizontal" Margin="5,5,5,5">
                 <Button Width="80" Content="Load" HorizontalAlignment="Left" VerticalAlignment="Center" Click="Load_image"/>
                 <Button Width="80" Content="Run" HorizontalAlignment="Left" VerticalAlignment="Center" Click="Run_Macro" Margin="5,0,0,0"/>
+                <Button Width="100" Content="find best color" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="5,0,0,0"/>
                 <TextBlock x:Name="status" Text="Status: NONE" Foreground="#FFEDEDED" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="5,0,0,0"/>
             </StackPanel>
         </Grid>
