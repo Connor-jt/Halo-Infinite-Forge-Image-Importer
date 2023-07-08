@@ -47,12 +47,12 @@ namespace imaginator_halothousand{
 
                     ImageArrayifier new_imagator = new ImageArrayifier();
                     bool is_observable_mode = (observable_checkbox.IsChecked == true);
-                    image_instructions = new_imagator.pixel_queue(ofd.FileName, (float)image_intesity, is_observable_mode, is_observable_mode? ui_observable_textures.SelectedIndex : ui_textures.SelectedIndex);
-                    if (image_instructions.pixels == null){ // test to make sure we did not attempt to load an overly large image
-                        Print(image_instructions.output_message);
+                    return_object? new_image_instructions = new_imagator.pixel_queue(ofd.FileName, (float)image_intesity, is_observable_mode, is_observable_mode? ui_observable_textures.SelectedIndex : ui_textures.SelectedIndex);
+                    if (new_image_instructions.pixels == null){ // test to make sure we did not attempt to load an overly large image
+                        Print(new_image_instructions.output_message);
                         return;
                     }
-
+                    image_instructions = new_image_instructions;
 
                     Print("color converted with " + Math.Round(image_instructions.image_accuracy * 100.0, 4) + "% accuracy, " + image_instructions.visible_pixel_count + " pixels in that image to be created");
 
@@ -140,13 +140,29 @@ namespace imaginator_halothousand{
             ui_coord_z.IsEnabled = false;
             ui_coord_scale.IsEnabled = false;
 
-
+            ui_start.IsEnabled = false;
+            observable_checkbox.IsEnabled = false;
+            ui_textures.IsEnabled = false;
+            ui_observable_textures.IsEnabled = false;
+            ui_lightness.IsEnabled = false;
 
             ui_progressbar.Value = 0;
-            ui_progressbar.Maximum = image_instructions.visible_pixel_count;
-            ui_completion.Text = "0/" + image_instructions.visible_pixel_count;
             is_running_macro = true;
-            initiate_macro_task(image_instructions.pixels.Skip((int)start_index).ToList(), (float)coord_scale, (float)coord_x, (float)coord_y, (float)coord_z);
+            List<mapped_object> pixels_list;
+            if (selected_pixels.Count == 0){ // regular mode
+                pixels_list = image_instructions.pixels.Skip((int)start_index).ToList();
+                ui_progressbar.Maximum = image_instructions.visible_pixel_count;
+                ui_completion.Text = "0/" + image_instructions.visible_pixel_count;
+            }else{ // selected indexes mode
+                ui_progressbar.Maximum = selected_pixels.Count;
+                ui_completion.Text = "0/" + selected_pixels.Count;
+                pixels_list = new();
+                for (int i = 0; i < selected_pixels.Count; i++)
+                    pixels_list.Add(image_instructions.pixels[selected_pixels[i].visible_pixel_index]);
+            }
+            
+
+            initiate_macro_task(pixels_list, (float)coord_scale, (float)coord_x, (float)coord_y, (float)coord_z);
 
         }
         private void force_abort_macro() {
@@ -161,13 +177,20 @@ namespace imaginator_halothousand{
             ui_coord_y.IsEnabled = true;
             ui_coord_z.IsEnabled = true;
             ui_coord_scale.IsEnabled = true;
+
+            ui_start.IsEnabled = true;
+            observable_checkbox.IsEnabled = true;
+            ui_textures.IsEnabled = true;
+            ui_observable_textures.IsEnabled = true;
+            ui_lightness.IsEnabled = true;
+
             is_running_macro = false;
             RemoveHotkey();
             stop_timer();
         }
         float? try_parse_textbox_text(TextBox box, int decimal_points = 1){
             try{float return_ = float.Parse(box.Text);
-                return_ = (float)Math.Round(return_, 1);
+                return_ = (float)Math.Round(return_, decimal_points);
                 box.Text = return_.ToString();
                 return return_;
             }catch{return null;}
@@ -228,7 +251,11 @@ namespace imaginator_halothousand{
         #endregion
         public void call_back_progress(macro_progress progress_results){
             if (image_instructions == null) return; // this should never happen
-            ui_completion.Text = progress_results.completed + "/" + image_instructions.pixels.Count;
+
+            if (selected_pixels.Count == 0) // regular mode
+                 ui_completion.Text = progress_results.completed + "/" + image_instructions.pixels.Count;
+            else ui_completion.Text = progress_results.completed + "/" + selected_pixels.Count;
+
             ui_progressbar.Value = progress_results.completed;
             Print(progress_results.context);
 
@@ -255,7 +282,7 @@ namespace imaginator_halothousand{
             _windowHandle = new WindowInteropHelper(this).Handle;
             _source = HwndSource.FromHwnd(_windowHandle);
             _source.AddHook(HwndHook);
-            RegisterHotKey(_windowHandle, HOTKEY_ID, 0, 0x1B); // escape key
+            RegisterHotKey(_windowHandle, HOTKEY_ID, 0, 0x70); // f1 key
         }
         private void RemoveHotkey(){
             escape_hint.Visibility = Visibility.Collapsed;
@@ -351,6 +378,13 @@ namespace imaginator_halothousand{
             ui_selected_pixels.Children.Add(new_border);
 
             selected_pixels.Add(new selected_pixel { selected_indicator = new_border, x = img_x, y = img_y, visible_pixel_index = pixel_index });
+            ui_selected.Text = selected_pixels.Count.ToString();
+
+            if (selected_pixels.Count == 1){ // then we were previously at none
+                run_button.Content = "Run (selected)";
+                clear_button.IsEnabled = true;
+                ui_start.IsEnabled = false;
+            }
         }
         void try_deselect_pixel_at(System.Windows.Point coords){
             if (image_instructions == null || image_instructions.pixels == null || is_running_macro) return;
@@ -361,9 +395,24 @@ namespace imaginator_halothousand{
                 if (selected_pixels[i].x == img_x && selected_pixels[i].y == img_y){ // target found
                     ui_selected_pixels.Children.Remove(selected_pixels[i].selected_indicator);
                     selected_pixels.RemoveAt(i);
+                    ui_selected.Text = selected_pixels.Count.ToString();
+
+                    if (selected_pixels.Count == 0){ // none left, 
+                        exit_selected_pixel_mode();
+                    }
+
                     return;
                 }
             }
+        }
+        private void clear_button_Click(object sender, RoutedEventArgs e) => exit_selected_pixel_mode();
+        void exit_selected_pixel_mode(){
+            selected_pixels.Clear();
+            ui_selected_pixels.Children.Clear();
+            run_button.Content = "Run";
+            ui_selected.Text = "0";
+            clear_button.IsEnabled = false;
+            ui_start.IsEnabled = true;
         }
         void setup_border(System.Windows.Point coords, Border element){
             // get pixel size of image
@@ -385,5 +434,7 @@ namespace imaginator_halothousand{
             element.Margin = new_margin;
 
         }
+
+        
     }
 }

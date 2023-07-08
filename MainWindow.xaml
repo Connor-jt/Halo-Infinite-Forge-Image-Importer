@@ -104,7 +104,7 @@
                        RenderOptions.EdgeMode="Aliased" MouseMove="demo_image_MouseMove" 
                        MouseEnter="hover_border_MouseEnter" MouseLeave="hover_border_MouseLeave" MouseDown="hover_border_MouseDown" MouseUp="hover_border_MouseUp"/>
                     <TextBlock Text="Ingame" Foreground="#FFEDEDED" VerticalAlignment="Bottom" Margin="15,15,15,15"/>
-                    <Border x:Name="hover_border" BorderThickness="1" BorderBrush="White" HorizontalAlignment="Left" VerticalAlignment="Top" Width="20" Height="20" IsHitTestVisible="False" />
+                    <Border x:Name="hover_border" BorderThickness="1" Visibility="Collapsed" BorderBrush="#FFFFEA00" HorizontalAlignment="Left" VerticalAlignment="Top" Width="20" Height="20" IsHitTestVisible="False" />
                     <Grid x:Name="ui_selected_pixels">
                         
                     </Grid>
@@ -118,12 +118,13 @@
         <Grid Grid.Row="2" Background="#FF2E2E2E">
             <StackPanel Orientation="Horizontal" Margin="5,5,5,5">
                 <Button Width="80" Content="Load" HorizontalAlignment="Left" VerticalAlignment="Center" Click="Load_image"/>
-                <Button Width="80" Content="Run" HorizontalAlignment="Left" VerticalAlignment="Center" Click="Run_Macro" Margin="5,0,0,0"/>
-                <Button Width="100" Content="find best color" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="5,0,0,0"/>
+                <Button x:Name="run_button" Width="80" Content="Run" HorizontalAlignment="Left" VerticalAlignment="Center" Click="Run_Macro" Margin="5,0,0,0"/>
+                <!--Button Width="80" IsEnabled="False" Content="find best color" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="5,0,0,0"/-->
+                <Button x:Name="clear_button" IsEnabled="False" Width="80" Content="clear selected" HorizontalAlignment="Left" VerticalAlignment="Center" Margin="5,0,0,0" Click="clear_button_Click"/>
                 <TextBlock x:Name="status" Text="Status: NONE" Foreground="#FFEDEDED" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="5,0,0,0"/>
             </StackPanel>
         </Grid>
-        <TextBlock x:Name="escape_hint" Visibility="Collapsed" Text="PRESS ESCAPE TO CANCEL" Grid.Column="1" Grid.ColumnSpan="2" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="24" FontWeight="Bold" />
+        <TextBlock x:Name="escape_hint" Visibility="Collapsed" Text="PRESS [F1] TO CANCEL" Grid.Column="1" Grid.ColumnSpan="2" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="24" FontWeight="Bold" />
 
     </Grid>
 </Window>

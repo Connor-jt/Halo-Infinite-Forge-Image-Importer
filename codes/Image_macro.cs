@@ -157,6 +157,7 @@ namespace imaginator_halothousand.code_stuff{
             for (pixel_index = 0; pixel_index < pixels.Count; pixel_index++){
                 restore_state = state.not_created;
                 mapped_object? current = pixels[pixel_index];
+                wait(50);
                 for (int i = 0; i < 3; i++){ // 3 attempts to create the pixel
 
                     if (!create_pixel((mapped_object)current)){
@@ -164,12 +165,13 @@ namespace imaginator_halothousand.code_stuff{
                             update_status("failed pixel " + i + " too many times, aborting", MainWindow.macro_state.aborted);
                             return; // failed
                         }
-                        update_status("pixel " + i + " failed, waiting for menus to close to retry", MainWindow.macro_state.error);
+                        update_status("pixel " + pixel_index + " failed, waiting for menus to close to retry", MainWindow.macro_state.error);
                         if (!await_close_all_windows()){ // then close out the windows
                             update_status("failed to close menus to restart pixel " + i, MainWindow.macro_state.aborted);
                             return; // failed
                         }
-                    } else continue; // if didn't fail, then nextu
+                        wait(250);
+                    } else break; // if didn't fail, then nextu
                 }
             }
             last_step = "success";
@@ -189,9 +191,9 @@ namespace imaginator_halothousand.code_stuff{
             obj_created = 1,
             posx = 2, 
             posy = 3, 
-            posz = 3, 
-            color = 4, 
-            completed = 5,
+            posz = 4, 
+            color = 5, 
+            completed = 6,
         }
         public string last_step = "None";
         private void update_status(string new_status, MainWindow.macro_state state){
@@ -204,8 +206,8 @@ namespace imaginator_halothousand.code_stuff{
                 update_status("duplicating object", MainWindow.macro_state.working);
                 if (!DuplicateObject())
                     return false;
-                wait(300); // time for the object to spawn in
                 restore_state = state.obj_created; // theres really no way with the current pointers to confirm this though
+                wait(550); // time for the object to spawn in
             }
             // we ALWAYS need to open the menu, regardless of what step we're up to
             update_status("openning menu", MainWindow.macro_state.working);
@@ -247,7 +249,8 @@ namespace imaginator_halothousand.code_stuff{
                 restore_state = state.posz;
                 wait(50);
             }
-            
+
+
             if (restore_state < state.color){
                 // goto color element
                 update_status("going to color", MainWindow.macro_state.working);
@@ -283,7 +286,6 @@ namespace imaginator_halothousand.code_stuff{
             update_status("closing menu", MainWindow.macro_state.working);
             if (!Disable_property_menu()) 
                 return false;
-            //wait(50);
 
             return true;
         }
@@ -292,7 +294,7 @@ namespace imaginator_halothousand.code_stuff{
         #region AWAIT WINDOWS OPEN
         private bool Await_property_menu_open(){ // loop until menu values are readable
             for (int i = 0; i < 50; i++){
-                if (i > 0) wait(10);
+                if (i > 0) wait(15);
                 if (get_index_pointer() == null)
                     continue;
                 if (!Set_menu_selected_index(postion_x_index))
@@ -326,11 +328,15 @@ namespace imaginator_halothousand.code_stuff{
         #region AWAIT WINDOWS CLOSING
 
         bool await_close_all_windows(){
+            is_menu_open = false;
+            is_color_open = false;
             for (int i = 0; i < 5; i++){
                 Thread.Sleep(200); // fair wait time for any ingame process to complete
                 if (is_a_window_open()){
-                    if (!do_key_press(VKey.ESCAPE)) return false;
-                } else return true;
+                    if (!do_key_press(VKey.ESCAPE)) 
+                        return false;
+                } else 
+                    return true;
             }
             return false; // failed to close windows
         }
@@ -434,7 +440,6 @@ namespace imaginator_halothousand.code_stuff{
                 return false; // failsafe for logic errors
             if (!do_key_press(VKey.VK_R)) 
                 return false;
-            wait(100); // give time to open the menu
             // get the menu values, might need a longer wait
             if (!Await_property_menu_open()) 
                 return false;
@@ -621,9 +626,9 @@ namespace imaginator_halothousand.code_stuff{
 
             if (ctrl){
                 KSim.KeyDown(VKey.LCONTROL);
-                wait(10);
+                //wait(20);
                 KSim.KeyPress(key);
-                wait(10);
+                //wait(20);
                 KSim.KeyUp(VKey.LCONTROL);
             }
             else KSim.KeyPress(key);                
