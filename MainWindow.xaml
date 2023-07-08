@@ -5,7 +5,7 @@
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:imaginator_halothousand"
         mc:Ignorable="d"
-        Title="MainWindow" Height="450" Width="800" Background="#FF1F1F1F">
+        Title="MainWindow" Height="500" Width="800" Background="#FF1F1F1F">
     <Grid>
         <Grid.RowDefinitions>
             <RowDefinition Height="*"/>
@@ -69,6 +69,10 @@
                     <ComboBox  x:Name="ui_textures"/>
                     <ComboBox Visibility="Collapsed" x:Name="ui_observable_textures"/>
 
+                    <Grid>
+                        <TextBlock Text="image intensity:" Foreground="White" Margin="0,0,10,0"/>
+                        <TextBox x:Name="ui_lightness" Text="0.75" Foreground="Black" HorizontalAlignment="Right" Width="60"/>
+                    </Grid>
 
                     <Rectangle Height="1" Fill="#FFA0A0A0" Margin="3,5,3,25" />
                     <Grid>
@@ -85,18 +89,26 @@
                     </Grid>
                 </StackPanel>
             </Grid>
-            
             <Grid Grid.Column="1">
-                <Image x:Name="og_image" 
+                <Grid Width="250" Height="250">
+                    <Image x:Name="og_image" 
                        RenderOptions.BitmapScalingMode="NearestNeighbor"
                        RenderOptions.EdgeMode="Aliased"/>
-                <TextBlock Text="Original" Foreground="#FFEDEDED" VerticalAlignment="Bottom" Margin="15,15,15,15"/>
+                    <TextBlock Text="Original" Foreground="#FFEDEDED" VerticalAlignment="Bottom" Margin="15,15,15,15"/>
+                </Grid>
             </Grid>
             <Grid Grid.Column="2">
-                <Image x:Name="demo_image" 
+                <Grid Width="250" Height="250">
+                    <Image x:Name="demo_image" 
                        RenderOptions.BitmapScalingMode="NearestNeighbor"
-                       RenderOptions.EdgeMode="Aliased"/>
-                <TextBlock Text="Ingame" Foreground="#FFEDEDED" VerticalAlignment="Bottom" Margin="15,15,15,15"/>
+                       RenderOptions.EdgeMode="Aliased" MouseMove="demo_image_MouseMove" 
+                       MouseEnter="hover_border_MouseEnter" MouseLeave="hover_border_MouseLeave" MouseDown="hover_border_MouseDown" MouseUp="hover_border_MouseUp"/>
+                    <TextBlock Text="Ingame" Foreground="#FFEDEDED" VerticalAlignment="Bottom" Margin="15,15,15,15"/>
+                    <Border x:Name="hover_border" BorderThickness="1" BorderBrush="White" HorizontalAlignment="Left" VerticalAlignment="Top" Width="20" Height="20" IsHitTestVisible="False" />
+                    <Grid x:Name="ui_selected_pixels">
+                        
+                    </Grid>
+                </Grid>
             </Grid>
 
         </Grid>
@@ -111,5 +123,7 @@
                 <TextBlock x:Name="status" Text="Status: NONE" Foreground="#FFEDEDED" VerticalAlignment="Center" HorizontalAlignment="Left" Margin="5,0,0,0"/>
             </StackPanel>
         </Grid>
+        <TextBlock x:Name="escape_hint" Visibility="Collapsed" Text="PRESS ESCAPE TO CANCEL" Grid.Column="1" Grid.ColumnSpan="2" HorizontalAlignment="Center" VerticalAlignment="Center" Foreground="White" FontSize="24" FontWeight="Bold" />
+
     </Grid>
 </Window>

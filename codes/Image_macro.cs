@@ -80,7 +80,7 @@ namespace imaginator_halothousand.code_stuff{
         long? return_UI_window_ptr(int tag_id){ // doubles as a check to see if the window is open
             // attempt a few times, incase the timing was the worst ever
             for (int repeat = 0; repeat < 3; repeat++){
-                if (repeat > 0) Thread.Sleep(5);
+                if (repeat > 0) wait(5);
 
                 int? array_length = cm.read_int32(Halodll_address + UI_array_size_offset);
                 if (array_length == null) return null;
@@ -128,7 +128,9 @@ namespace imaginator_halothousand.code_stuff{
 
         public int pixel_index = 0;
         IProgress<MainWindow.macro_progress> macro_progress;
-        public void begin_macro(List<mapped_object> pixels, float _scale, float x, float y, float z, IProgress<MainWindow.macro_progress> progress){
+        CancellationToken macro_cts;
+        public void begin_macro(List<mapped_object> pixels, float _scale, float x, float y, float z, IProgress<MainWindow.macro_progress> progress, CancellationToken token){
+            macro_cts = token;
             // configure intial values
             global_scale = _scale;
             global_X = x;
@@ -149,18 +151,33 @@ namespace imaginator_halothousand.code_stuff{
             }
 
             SetForegroundWindow(cm.hooked_process.MainWindowHandle);
-            Thread.Sleep(500);
+            wait(500);
 
 
             for (pixel_index = 0; pixel_index < pixels.Count; pixel_index++){
+                restore_state = state.not_created;
                 mapped_object? current = pixels[pixel_index];
-                if (!create_pixel((mapped_object)current)){
-                    update_status("process aborted", MainWindow.macro_state.aborted);
-                    return; // failed
+                for (int i = 0; i < 3; i++){ // 3 attempts to create the pixel
+
+                    if (!create_pixel((mapped_object)current)){
+                        if (i == 2){ // failed too many times, ending process
+                            update_status("failed pixel " + i + " too many times, aborting", MainWindow.macro_state.aborted);
+                            return; // failed
+                        }
+                        update_status("pixel " + i + " failed, waiting for menus to close to retry", MainWindow.macro_state.error);
+                        if (!await_close_all_windows()){ // then close out the windows
+                            update_status("failed to close menus to restart pixel " + i, MainWindow.macro_state.aborted);
+                            return; // failed
+                        }
+                    } else continue; // if didn't fail, then nextu
                 }
             }
             last_step = "success";
             update_status("process completed", MainWindow.macro_state.completed);
+        }
+        void wait(int miliseconds){
+            Thread.Sleep(miliseconds);
+            macro_cts.ThrowIfCancellationRequested();
         }
         bool is_game_session_is_alive(){
             return (cm != null && cm.hooked_process != null && !cm.hooked_process.HasExited);
@@ -170,7 +187,11 @@ namespace imaginator_halothousand.code_stuff{
         public enum state{
             not_created = 0,
             obj_created = 1,
-
+            posx = 2, 
+            posy = 3, 
+            posz = 3, 
+            color = 4, 
+            completed = 5,
         }
         public string last_step = "None";
         private void update_status(string new_status, MainWindow.macro_state state){
@@ -179,76 +200,90 @@ namespace imaginator_halothousand.code_stuff{
         }
 
         bool create_pixel(mapped_object pixel){
-            restore_state = state.not_created;
-            update_status("duplicating object", MainWindow.macro_state.working);
-            if (!DuplicateObject()) 
-                return false;
-            Thread.Sleep(300); // time for the object to spawn in
-            restore_state = state.obj_created; // theres really no way with the current pointers to confirm this though
-
+            if (restore_state < state.obj_created){
+                update_status("duplicating object", MainWindow.macro_state.working);
+                if (!DuplicateObject())
+                    return false;
+                wait(300); // time for the object to spawn in
+                restore_state = state.obj_created; // theres really no way with the current pointers to confirm this though
+            }
+            // we ALWAYS need to open the menu, regardless of what step we're up to
             update_status("openning menu", MainWindow.macro_state.working);
             if (!Enable_property_menu()) 
                 return false;
 
 
-            // set pos x // update value
-            for (int i = 0; i < 3; i++){
-                if (i == 0) update_status("pos x, attempt#" + i, MainWindow.macro_state.working);
-                else        update_status("pos x, attempt#" + i, MainWindow.macro_state.error);
-                if (navigate_and_assign_menu_value(postion_y_index, global_Y + ((float)pixel.X * global_scale))) break;
-                else if (i == 2) return false;
+
+            if (restore_state < state.posx){
+                // set pos y // update value
+                for (int i = 0; i < 3; i++){
+                    if (i == 0) update_status("pos y, attempt#" + i, MainWindow.macro_state.working);
+                    else        update_status("pos y, attempt#" + i, MainWindow.macro_state.error);
+                    if (navigate_and_assign_menu_value(postion_x_index, global_X)) break;
+                    else if (i == 2) return false;
+                }
+                restore_state = state.posx;
             }
-
-            // set pos y // update value
-            for (int i = 0; i < 3; i++){
-                if (i == 0) update_status("pos y, attempt#" + i, MainWindow.macro_state.working);
-                else        update_status("pos y, attempt#" + i, MainWindow.macro_state.error);
-                //if (navigate_and_assign_menu_value(postion_x_index, global_X)) break;
-                if (navigate_and_open_close_assign_value(postion_x_index, global_X)) break;
-                else if (i == 2) return false;
+            
+            if (restore_state < state.posy){
+                // set pos x // update value
+                for (int i = 0; i < 3; i++){
+                    if (i == 0) update_status("pos x, attempt#" + i, MainWindow.macro_state.working);
+                    else        update_status("pos x, attempt#" + i, MainWindow.macro_state.error);
+                    if (navigate_and_open_close_assign_value(postion_y_index, global_Y + ((float)pixel.X * global_scale))) break;
+                    else if (i == 2) return false;
+                }
+                restore_state = state.posy;
             }
-
-            // set pos z // update value
-            for (int i = 0; i < 3; i++){
-                if (i == 0) update_status("pos z, attempt#" + i, MainWindow.macro_state.working);
-                else        update_status("pos z, attempt#" + i, MainWindow.macro_state.error);
-                if (navigate_and_assign_menu_value(postion_z_index, global_Z - ((float)pixel.Y * global_scale))) break;
-                else if(i == 2) return false;
+           
+            if (restore_state < state.posz){
+                // set pos z // update value
+                for (int i = 0; i < 3; i++){
+                    if (i == 0) update_status("pos z, attempt#" + i, MainWindow.macro_state.working);
+                    else        update_status("pos z, attempt#" + i, MainWindow.macro_state.error);
+                    if (navigate_and_assign_menu_value(postion_z_index, global_Z - ((float)pixel.Y * global_scale))) break;
+                    else if(i == 2) return false;
+                }
+                restore_state = state.posz;
+                wait(50);
             }
-            Thread.Sleep(50);
+            
+            if (restore_state < state.color){
+                // goto color element
+                update_status("going to color", MainWindow.macro_state.working);
+                if (!Set_menu_selected_index(color_index)) 
+                    return false;
 
-            // goto color element
-            update_status("going to color", MainWindow.macro_state.working);
-            if (!Set_menu_selected_index(color_index)) 
-                return false;
+                // open color element
+                update_status("openning color", MainWindow.macro_state.working);
+                if (!Enable_color_menu()) 
+                    return false;
 
-            // open color element
-            update_status("openning color", MainWindow.macro_state.working);
-            if (!Enable_color_menu()) 
-                return false;
+                // set color
+                update_status("setting color index " + pixel.color_index, MainWindow.macro_state.working);
+                if (!Set_color_selected_index(pixel.color_index)) 
+                    return false;
 
-            // set color
-            update_status("setting color index " + pixel.color_index, MainWindow.macro_state.working);
-            if (!Set_color_selected_index(pixel.color_index)) 
-                return false;
-
-            // close color element
-            update_status("closing color", MainWindow.macro_state.working);
-            if (!Disable_color_menu()) 
-                return false;
-            //Thread.Sleep(20);
+                // close color element
+                update_status("closing color", MainWindow.macro_state.working);
+                if (!Disable_color_menu()) 
+                    return false;
+                //wait(20);
+                restore_state = state.color;
+            }
 
             // set color intensity
             update_status("color intensity " + (float)pixel.intensity_index / 100, MainWindow.macro_state.working);
             if (!navigate_and_open_close_assign_value(intensity_index, (float)pixel.intensity_index / 100)) 
                 return false;
-            Thread.Sleep(20);
+            wait(20);
+            restore_state = state.completed;
 
             // close panel
             update_status("closing menu", MainWindow.macro_state.working);
             if (!Disable_property_menu()) 
                 return false;
-            //Thread.Sleep(50);
+            //wait(50);
 
             return true;
         }
@@ -257,7 +292,7 @@ namespace imaginator_halothousand.code_stuff{
         #region AWAIT WINDOWS OPEN
         private bool Await_property_menu_open(){ // loop until menu values are readable
             for (int i = 0; i < 50; i++){
-                if (i > 0) Thread.Sleep(10);
+                if (i > 0) wait(10);
                 if (get_index_pointer() == null)
                     continue;
                 if (!Set_menu_selected_index(postion_x_index))
@@ -270,7 +305,7 @@ namespace imaginator_halothousand.code_stuff{
         }
         private bool Await_color_menu_open(){
             for (int i = 0; i < 50; i++){
-                if (i > 0) Thread.Sleep(10);
+                if (i > 0) wait(10);
                 if (get_color_pointer() == null)
                     continue;
                 return true; // all menu systems are working
@@ -279,7 +314,7 @@ namespace imaginator_halothousand.code_stuff{
         }
         private bool Await_value_menu_open(){
             for (int i = 0; i < 50; i++){
-                if (i > 0) Thread.Sleep(10);
+                if (i > 0) wait(10);
                 if (return_UI_value_window_ptr() == null)
                     continue;
                 return true; // all menu systems are working
@@ -289,9 +324,28 @@ namespace imaginator_halothousand.code_stuff{
         #endregion
 
         #region AWAIT WINDOWS CLOSING
+
+        bool await_close_all_windows(){
+            for (int i = 0; i < 5; i++){
+                Thread.Sleep(200); // fair wait time for any ingame process to complete
+                if (is_a_window_open()){
+                    if (!do_key_press(VKey.ESCAPE)) return false;
+                } else return true;
+            }
+            return false; // failed to close windows
+        }
+        bool is_a_window_open(){
+            if (return_UI_property_window_ptr() != null)
+                return true;
+            if (return_UI_color_window_ptr() != null)
+                return true;
+            if (return_UI_value_window_ptr() != null)
+                return true;
+            return false;
+        }
         private bool Await_property_menu_close(){ // loop until the pointer is invalid
             for (int i = 0; i < 50; i++){
-                if (i > 0) Thread.Sleep(10);
+                if (i > 0) wait(10);
                 if (return_UI_property_window_ptr() != null)
                     continue;
                 return true; // menu is no longer open
@@ -300,7 +354,7 @@ namespace imaginator_halothousand.code_stuff{
         }
         private bool Await_color_menu_close(){ // loop until the pointer is invalid
             for (int i = 0; i < 50; i++){
-                if (i > 0) Thread.Sleep(10);
+                if (i > 0) wait(10);
                 if (return_UI_color_window_ptr() != null)
                     continue;
                 return true; // menu is no longer open
@@ -309,7 +363,7 @@ namespace imaginator_halothousand.code_stuff{
         }
         private bool Await_value_menu_close(){ // loop until the pointer is invalid
             for (int i = 0; i< 50; i++){
-                if (i > 0) Thread.Sleep(10);
+                if (i > 0) wait(10);
                 if (return_UI_value_window_ptr() != null)
                     continue;
                 return true; // menu is no longer open
@@ -330,9 +384,9 @@ namespace imaginator_halothousand.code_stuff{
         private bool Await_selected_value_change(){
             if (selected_value == null)
                 return false; // logic error
-            //Thread.Sleep(20);
+            //wait(20);
             for (int i = 0; i < 40; i++){
-                if (i > 0) Thread.Sleep(5);
+                if (i > 0) wait(5);
                 float? value = Get_menu_selected_value();
                 if (value == null) continue;
                 if (value == selected_value) continue;
@@ -354,7 +408,7 @@ namespace imaginator_halothousand.code_stuff{
             if (selected_color == null)
                 return false; // logic error
             for (int i = 0; i < 15; i++){
-                if (i > 0) Thread.Sleep(15);
+                if (i > 0) wait(15);
                 int? index = Get_color_selected_index();
                 if (index == null) continue;
                 if (index == selected_color) continue;
@@ -380,12 +434,12 @@ namespace imaginator_halothousand.code_stuff{
                 return false; // failsafe for logic errors
             if (!do_key_press(VKey.VK_R)) 
                 return false;
-            Thread.Sleep(100); // give time to open the menu
+            wait(100); // give time to open the menu
             // get the menu values, might need a longer wait
             if (!Await_property_menu_open()) 
                 return false;
             is_menu_open = true;
-            Thread.Sleep(100);
+            wait(100);
             return true;
         }
         private bool Disable_property_menu(){
@@ -429,7 +483,7 @@ namespace imaginator_halothousand.code_stuff{
             // write value
             if (!cm.write_int32((long)index_ptr, index)) 
                 return false;
-            Thread.Sleep(20); // time for the new selection to occur
+            wait(20); // time for the new selection to occur
             return true;
         }
         private bool Apply_menu_selected_value(float new_val){
@@ -439,7 +493,7 @@ namespace imaginator_halothousand.code_stuff{
             // write value
             if (!cm.write_float((long)value_ptr, new_val)) 
                 return false;
-            Thread.Sleep(20); // time for the value to update
+            wait(20); // time for the value to update
             return true;
         }
         private float? Get_menu_selected_value(){
@@ -456,10 +510,10 @@ namespace imaginator_halothousand.code_stuff{
         private bool Apply_menu_value(){
             if (!record_selected_value())
                 return false;
-            //Thread.Sleep(20); // time for recorded value to register?
+            //wait(20); // time for recorded value to register?
             if (!do_key_press(VKey.RIGHT)) 
                 return false;
-            Thread.Sleep(20); // time for the key input to register
+            wait(20); // time for the key input to register
             //if (!Await_selected_value_change())
             //    return false;
             return true;
@@ -469,11 +523,11 @@ namespace imaginator_halothousand.code_stuff{
                 return false;
             if (!Await_value_menu_open())
                 return false;
-            Thread.Sleep(50); // extra time for the menu to open
+            wait(50); // extra time for the menu to open
             for (int i = 0; i < 5; i++){
                 if (!do_key_press(VKey.RETURN))
                     return false;
-                Thread.Sleep(20); // time for input to register
+                wait(20); // time for input to register
                 if (Await_value_menu_close()) break;
                 else if (i == 4)
                     return false;
@@ -492,7 +546,7 @@ namespace imaginator_halothousand.code_stuff{
                 return false;
             if (!Await_color_menu_open())
                 return false;
-            Thread.Sleep(50);
+            wait(50);
             is_color_open = true;
             return true;
         }
@@ -515,7 +569,7 @@ namespace imaginator_halothousand.code_stuff{
                 return false;
             if (!cm.write_int32((long)color_index_ptr, index)) 
                 return false;
-            Thread.Sleep(20); // time for value to set
+            wait(20); // time for value to set
             if (!Apply_color_value(index))
                 return false;
 
@@ -534,16 +588,16 @@ namespace imaginator_halothousand.code_stuff{
                 if (!Color_down())
                     return false;
             }
-            Thread.Sleep(20); // time the selection to settle
+            wait(20); // time the selection to settle
             return true;
         }
         private bool Color_up(){
             if (!record_selected_color())
                 return false;
-            Thread.Sleep(20);
+            wait(20);
             if (!do_key_press(VKey.UP))
                 return false;
-            //Thread.Sleep(20);
+            //wait(20);
             if (!Await_selected_color_change())
                 return false;
             return true;
@@ -551,10 +605,10 @@ namespace imaginator_halothousand.code_stuff{
         private bool Color_down(){
             if (!record_selected_color())
                 return false;
-            Thread.Sleep(20);
+            wait(20);
             if (!do_key_press(VKey.DOWN))
                 return false;
-            //Thread.Sleep(20);
+            //wait(20);
             if (!Await_selected_color_change())
                 return false;
             return true;
@@ -567,9 +621,9 @@ namespace imaginator_halothousand.code_stuff{
 
             if (ctrl){
                 KSim.KeyDown(VKey.LCONTROL);
-                Thread.Sleep(10);
+                wait(10);
                 KSim.KeyPress(key);
-                Thread.Sleep(10);
+                wait(10);
                 KSim.KeyUp(VKey.LCONTROL);
             }
             else KSim.KeyPress(key);                

@@ -229,7 +229,7 @@ namespace imaginator_halothousand.code_stuff{
             public Bitmap? source_img;
             public Bitmap? visualized_img;
 
-            public List<mapped_object> pixels;
+            public List<mapped_object>? pixels;
             public string? output_message;
             public int pixel_count;
             public int visible_pixel_count;
@@ -241,7 +241,7 @@ namespace imaginator_halothousand.code_stuff{
         public return_object result = new ();
 
 
-        public return_object pixel_queue(string file_directory, bool use_observables, int selected_color_index){
+        public return_object pixel_queue(string file_directory, float image_intensity, bool use_observables, int selected_color_index){
 
             result.source_img = new Bitmap(file_directory);
             result.visualized_img = new Bitmap(file_directory);
@@ -253,6 +253,13 @@ namespace imaginator_halothousand.code_stuff{
             result.pixel_count = result.source_img.Width * result.source_img.Height;
             result.pixels = new List<mapped_object>();
             result.visible_pixel_count = result.pixel_count;
+
+            
+            if (result.pixel_count > 10000){
+                result.output_message = "more than 10000 pixels, you should NOT attempt to process images with more than 10k pixels";
+                result.pixels = null;
+                return result;
+            }
 
             int curr_pixel = 0;
             for (int x=0; x < result.source_img.Width; x++){
@@ -269,7 +276,7 @@ namespace imaginator_halothousand.code_stuff{
 
                     //int color_index = get_index_of_closest_color(myBitmap.GetPixel(x, y));
                     //visualizedBitmap.SetPixel(x, y, color_by_list_index(color_index));
-                    KeyValuePair<int, int> color_index = get_index_and_intensity_of_closest_color(pixel);
+                    KeyValuePair<int, int> color_index = get_index_and_intensity_of_closest_color(pixel, image_intensity);
                     result.visualized_img.SetPixel(x, y, color_by_intensity_list_index(color_index.Key, color_index.Value));
 
 
@@ -329,10 +336,10 @@ namespace imaginator_halothousand.code_stuff{
 
 
 
-        KeyValuePair<int, int> get_index_and_intensity_of_closest_color(Color og_color){
-            float r = color_as_float(og_color.R);
-            float g = color_as_float(og_color.G);
-            float b = color_as_float(og_color.B);
+        KeyValuePair<int, int> get_index_and_intensity_of_closest_color(Color og_color, float image_intensity){
+            float r = color_as_float(og_color.R) * image_intensity;
+            float g = color_as_float(og_color.G) * image_intensity;
+            float b = color_as_float(og_color.B) * image_intensity;
 
             int closest_palette_index = 0;
             int closest_intensity_index = 0;

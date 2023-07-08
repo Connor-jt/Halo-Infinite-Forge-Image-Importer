@@ -3,13 +3,16 @@ using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text;
+using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Data;
 using System.Windows.Documents;
 using System.Windows.Input;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Media.Imaging;
 using System.Windows.Navigation;
@@ -33,26 +36,38 @@ namespace imaginator_halothousand{
         return_object? image_instructions;
 
         private void Load_image(object sender, RoutedEventArgs e){
+            
+            float? image_intesity = try_parse_textbox_text(ui_lightness, 3);
+            if (image_intesity == null || image_intesity < 0.0 || image_intesity > 1.0){
+                Print("bad image intensity value, needs to be a decimal between 0.0 - 1.0");
+                return;
+            }
+            try{Microsoft.Win32.OpenFileDialog ofd = new();
+                if (ofd.ShowDialog() == true){
 
-            Microsoft.Win32.OpenFileDialog ofd = new();
+                    ImageArrayifier new_imagator = new ImageArrayifier();
+                    bool is_observable_mode = (observable_checkbox.IsChecked == true);
+                    image_instructions = new_imagator.pixel_queue(ofd.FileName, (float)image_intesity, is_observable_mode, is_observable_mode? ui_observable_textures.SelectedIndex : ui_textures.SelectedIndex);
+                    if (image_instructions.pixels == null){ // test to make sure we did not attempt to load an overly large image
+                        Print(image_instructions.output_message);
+                        return;
+                    }
 
-            if (ofd.ShowDialog() == true){
 
-                ImageArrayifier new_imagator = new ImageArrayifier();
-                bool is_observable_mode = (observable_checkbox.IsChecked == true);
-                image_instructions = new_imagator.pixel_queue(ofd.FileName, is_observable_mode, is_observable_mode? ui_observable_textures.SelectedIndex : ui_textures.SelectedIndex);
+                    Print("color converted with " + Math.Round(image_instructions.image_accuracy * 100.0, 4) + "% accuracy, " + image_instructions.visible_pixel_count + " pixels in that image to be created");
 
-                Print("color converted with " + Math.Round(image_instructions.image_accuracy * 100.0, 4) + "% accuracy, " + image_instructions.visible_pixel_count + " pixels in that image to be created");
+                    // display the comparison images
+                    og_image.Source   = BitmapToImageSource(image_instructions.source_img);
+                    demo_image.Source = BitmapToImageSource(image_instructions.visualized_img);
 
-                // display the comparison images
-                og_image.Source   = BitmapToImageSource(image_instructions.source_img);
-                demo_image.Source = BitmapToImageSource(image_instructions.visualized_img);
-
-                ui_pixel_count.Text = image_instructions.pixel_count.ToString();
-                ui_pixels_opaque.Text = image_instructions.visible_pixel_count.ToString();
-                ui_accuracy.Text = image_instructions.image_accuracy.ToString();
-                // functionality to output image for testing purposes
-                //image_instructions.visualized_img.Save("C:\\Users\\Joe bingle\\Downloads\\IFIMT research\\output.png", System.Drawing.Imaging.ImageFormat.Png);
+                    ui_pixel_count.Text = image_instructions.pixel_count.ToString();
+                    ui_pixels_opaque.Text = image_instructions.visible_pixel_count.ToString();
+                    ui_accuracy.Text = image_instructions.image_accuracy.ToString();
+                    // functionality to output image for testing purposes
+                    //image_instructions.visualized_img.Save("C:\\Users\\Joe bingle\\Downloads\\IFIMT research\\output.png", System.Drawing.Imaging.ImageFormat.Png);
+            }}catch (Exception ex){
+                Print(ex.ToString());
+                return;
             }
         }
         BitmapImage BitmapToImageSource(Bitmap bitmap){
@@ -113,6 +128,13 @@ namespace imaginator_halothousand{
                 Print("coords failed to configure, please enter the ingame coords into the left side panel");
                 return;
             }
+
+            int? start_index = try_parseint_textbox_text(ui_start);
+            if (start_index == null || start_index >= image_instructions.pixels.Count){
+                Print("bad start index");
+                return;
+            }
+
             ui_coord_x.IsEnabled = false;
             ui_coord_y.IsEnabled = false;
             ui_coord_z.IsEnabled = false;
@@ -124,8 +146,14 @@ namespace imaginator_halothousand{
             ui_progressbar.Maximum = image_instructions.visible_pixel_count;
             ui_completion.Text = "0/" + image_instructions.visible_pixel_count;
             is_running_macro = true;
-            initiate_macro_task(image_instructions.pixels, (float)coord_scale, (float)coord_x, (float)coord_y, (float)coord_z);
+            initiate_macro_task(image_instructions.pixels.Skip((int)start_index).ToList(), (float)coord_scale, (float)coord_x, (float)coord_y, (float)coord_z);
 
+        }
+        private void force_abort_macro() {
+            if (macro_cts != null){
+                macro_cts.Cancel();
+                Print("successfully called cancellation");
+            }
         }
         private void ended_macro(){
             if (is_running_macro == false) return; // this was probably called by the fallback call, where we weren't reported that it ended
@@ -134,11 +162,18 @@ namespace imaginator_halothousand{
             ui_coord_z.IsEnabled = true;
             ui_coord_scale.IsEnabled = true;
             is_running_macro = false;
+            RemoveHotkey();
             stop_timer();
         }
-        float? try_parse_textbox_text(TextBox box){
+        float? try_parse_textbox_text(TextBox box, int decimal_points = 1){
             try{float return_ = float.Parse(box.Text);
                 return_ = (float)Math.Round(return_, 1);
+                box.Text = return_.ToString();
+                return return_;
+            }catch{return null;}
+        }
+        int? try_parseint_textbox_text(TextBox box){
+            try{int return_ = int.Parse(box.Text);
                 box.Text = return_.ToString();
                 return return_;
             }catch{return null;}
@@ -162,11 +197,14 @@ namespace imaginator_halothousand{
             public int completed;
             public macro_state state;
         }
+        CancellationTokenSource? macro_cts = null;
         async void initiate_macro_task(List<mapped_object> pixels, float coord_scale, float coord_x, float coord_y, float coord_z){
+            set_hotkey();
             IProgress<macro_progress> progress = new Progress<macro_progress>(call_back_progress); // i believe we put the function in here
             Image_macro image_maker = new Image_macro();
             start_timer();
-            await Task.Run(() => image_maker.begin_macro(pixels, coord_scale, coord_x, coord_y, coord_z, progress));
+            macro_cts = new();
+            await Task.Run(() => image_maker.begin_macro(pixels, coord_scale, coord_x, coord_y, coord_z, progress, macro_cts.Token));
             ended_macro();
         }
         #region TIMER
@@ -204,5 +242,148 @@ namespace imaginator_halothousand{
         }
         #endregion
 
+        #region HOTKEY
+        [DllImport("user32.dll")]
+        private static extern bool RegisterHotKey(IntPtr hWnd, int id, uint fsModifiers, uint vk);
+        [DllImport("user32.dll")]
+        private static extern bool UnregisterHotKey(IntPtr hWnd, int id);
+        private const int HOTKEY_ID = 9000;
+        private IntPtr _windowHandle;
+        private HwndSource _source;
+        private void set_hotkey(){
+            escape_hint.Visibility = Visibility.Visible;
+            _windowHandle = new WindowInteropHelper(this).Handle;
+            _source = HwndSource.FromHwnd(_windowHandle);
+            _source.AddHook(HwndHook);
+            RegisterHotKey(_windowHandle, HOTKEY_ID, 0, 0x1B); // escape key
+        }
+        private void RemoveHotkey(){
+            escape_hint.Visibility = Visibility.Collapsed;
+            _source.RemoveHook(HwndHook);
+            UnregisterHotKey(_windowHandle, HOTKEY_ID);
+        }
+        private IntPtr HwndHook(IntPtr hwnd, int msg, IntPtr wParam, IntPtr lParam, ref bool handled){
+            const int WM_HOTKEY = 0x0312; 
+            if (msg == WM_HOTKEY && wParam.ToInt32() == HOTKEY_ID){
+                // escape process
+                force_abort_macro();
+                handled = true;
+            }
+            return IntPtr.Zero;
+        }
+        #endregion
+
+        struct selected_pixel {
+            public int x;
+            public int y;
+            public int visible_pixel_index;
+            public Border selected_indicator;
+        }
+
+        List<selected_pixel> selected_pixels = new List<selected_pixel>();
+
+        private void demo_image_MouseMove(object sender, MouseEventArgs e){
+            if (image_instructions == null || image_instructions.visualized_img == null || is_running_macro) return;
+            if (is_dragging){
+                interact_with_point(e.GetPosition(demo_image));
+            }else{ // attempt to select pixel here
+                setup_border(e.GetPosition(demo_image), hover_border);
+            }
+        }
+        void interact_with_point(System.Windows.Point coords){
+            if (Keyboard.IsKeyDown(Key.LeftCtrl) || Keyboard.IsKeyDown(Key.RightCtrl)) // deselect
+                    try_deselect_pixel_at(coords);
+            else try_select_pixel_at(coords);
+        }
+
+        bool is_dragging = false;
+        private void hover_border_MouseEnter(object sender, MouseEventArgs e){
+            hover_border.Visibility = Visibility.Visible;
+        }
+
+        private void hover_border_MouseLeave(object sender, MouseEventArgs e){
+            hover_border.Visibility = Visibility.Collapsed;
+            is_dragging = false;
+        }
+
+        private void hover_border_MouseDown(object sender, MouseButtonEventArgs e){
+            if (e.LeftButton != MouseButtonState.Pressed) return;
+            is_dragging = true;
+            e.Handled = true;
+            hover_border.Visibility = Visibility.Collapsed;
+            interact_with_point(e.GetPosition(demo_image));
+        }
+
+        private void hover_border_MouseUp(object sender, MouseButtonEventArgs e){
+            if (e.LeftButton != MouseButtonState.Released) return;
+            is_dragging = false;
+            e.Handled = true;
+            hover_border.Visibility = Visibility.Visible;
+        }
+
+        void try_select_pixel_at(System.Windows.Point coords){
+            if (image_instructions == null || image_instructions.pixels == null || is_running_macro) return;
+
+            int img_x = (int)Math.Truncate(coords.X / (demo_image.ActualWidth / image_instructions.visualized_img.Width));
+            int img_y = (int)Math.Truncate(coords.Y / (demo_image.ActualHeight / image_instructions.visualized_img.Height));
+            for (int i = 0; i < selected_pixels.Count; i++){
+                if (selected_pixels[i].x == img_x && selected_pixels[i].y == img_y)
+                    return;
+            }
+            int pixel_index = -1;
+            // and then we have to make sure its a selectable pixel
+            for (int i = 0; i < image_instructions.pixels.Count; i++){
+                if (image_instructions.pixels[i].X == img_x && image_instructions.pixels[i].Y == img_y){
+                    pixel_index = i;
+                    break;
+                }
+            }
+            if (pixel_index == -1) return; // pixel was not valid, do not select
+
+            Border new_border = new Border();
+            new_border.HorizontalAlignment = HorizontalAlignment.Left;
+            new_border.VerticalAlignment = VerticalAlignment.Top;
+            new_border.BorderBrush = System.Windows.Media.Brushes.White;
+            new_border.BorderThickness = new Thickness(1, 1, 1, 1);
+            new_border.IsHitTestVisible = false;
+            setup_border(coords, new_border);
+
+            ui_selected_pixels.Children.Add(new_border);
+
+            selected_pixels.Add(new selected_pixel { selected_indicator = new_border, x = img_x, y = img_y, visible_pixel_index = pixel_index });
+        }
+        void try_deselect_pixel_at(System.Windows.Point coords){
+            if (image_instructions == null || image_instructions.pixels == null || is_running_macro) return;
+            
+            int img_x = (int)Math.Truncate(coords.X / (demo_image.ActualWidth / image_instructions.visualized_img.Width));
+            int img_y = (int)Math.Truncate(coords.Y / (demo_image.ActualHeight / image_instructions.visualized_img.Height));
+            for (int i = 0; i < selected_pixels.Count; i++){
+                if (selected_pixels[i].x == img_x && selected_pixels[i].y == img_y){ // target found
+                    ui_selected_pixels.Children.Remove(selected_pixels[i].selected_indicator);
+                    selected_pixels.RemoveAt(i);
+                    return;
+                }
+            }
+        }
+        void setup_border(System.Windows.Point coords, Border element){
+            // get pixel size of image
+            double real_pixels_per_img_pxiel_x = demo_image.ActualWidth / image_instructions.visualized_img.Width;
+            double real_pixels_per_img_pxiel_y = demo_image.ActualHeight / image_instructions.visualized_img.Height;
+
+            double img_x = Math.Truncate(coords.X / real_pixels_per_img_pxiel_x);
+            double img_y = Math.Truncate(coords.Y / real_pixels_per_img_pxiel_y);
+
+            double left_spacing = (250.0 - demo_image.ActualWidth) / 2;
+            double top_spacing = (250.0 - demo_image.ActualHeight) / 2;
+
+            // how do we 
+            element.Width = real_pixels_per_img_pxiel_x;
+            element.Height = real_pixels_per_img_pxiel_y;
+            Thickness new_margin = new Thickness();
+            new_margin.Left = left_spacing + img_x * real_pixels_per_img_pxiel_x;
+            new_margin.Top = top_spacing + img_y * real_pixels_per_img_pxiel_y;
+            element.Margin = new_margin;
+
+        }
     }
 }
