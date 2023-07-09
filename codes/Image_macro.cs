@@ -153,26 +153,28 @@ namespace imaginator_halothousand.code_stuff{
             SetForegroundWindow(cm.hooked_process.MainWindowHandle);
             wait(500);
 
+            try{for (pixel_index = 0; pixel_index < pixels.Count; pixel_index++){
+                    restore_state = state.not_created;
+                    mapped_object? current = pixels[pixel_index];
+                    wait(50);
+                    for (int i = 0; i < 3; i++){ // 3 attempts to create the pixel
 
-            for (pixel_index = 0; pixel_index < pixels.Count; pixel_index++){
-                restore_state = state.not_created;
-                mapped_object? current = pixels[pixel_index];
-                wait(50);
-                for (int i = 0; i < 3; i++){ // 3 attempts to create the pixel
-
-                    if (!create_pixel((mapped_object)current)){
-                        if (i == 2){ // failed too many times, ending process
-                            update_status("failed pixel " + i + " too many times, aborting", MainWindow.macro_state.aborted);
-                            return; // failed
-                        }
-                        update_status("pixel " + pixel_index + " failed, waiting for menus to close to retry", MainWindow.macro_state.error);
-                        if (!await_close_all_windows()){ // then close out the windows
-                            update_status("failed to close menus to restart pixel " + i, MainWindow.macro_state.aborted);
-                            return; // failed
-                        }
-                        wait(250);
-                    } else break; // if didn't fail, then nextu
-                }
+                        if (!create_pixel((mapped_object)current)){
+                            if (i == 2){ // failed too many times, ending process
+                                update_status("failed pixel " + i + " too many times, aborting", MainWindow.macro_state.aborted);
+                                return; // failed
+                            }
+                            update_status("pixel " + pixel_index + " failed, waiting for menus to close to retry", MainWindow.macro_state.error);
+                            if (!await_close_all_windows()){ // then close out the windows
+                                update_status("failed to close menus to restart pixel " + i, MainWindow.macro_state.aborted);
+                                return; // failed
+                            }
+                            wait(250);
+                        } else break; // if didn't fail, then nextu
+            }}} catch (Exception ex){
+                last_step = "failure";
+                update_status("manual cancellation or error arose: " + ex.ToString(), MainWindow.macro_state.aborted); ;
+                return;
             }
             last_step = "success";
             update_status("process completed", MainWindow.macro_state.completed);
@@ -207,7 +209,7 @@ namespace imaginator_halothousand.code_stuff{
                 if (!DuplicateObject())
                     return false;
                 restore_state = state.obj_created; // theres really no way with the current pointers to confirm this though
-                wait(550); // time for the object to spawn in
+                wait(300); // time for the object to spawn in
             }
             // we ALWAYS need to open the menu, regardless of what step we're up to
             update_status("openning menu", MainWindow.macro_state.working);

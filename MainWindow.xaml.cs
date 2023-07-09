@@ -52,6 +52,7 @@ namespace imaginator_halothousand{
                         Print(new_image_instructions.output_message);
                         return;
                     }
+                    exit_selected_pixel_mode();
                     image_instructions = new_image_instructions;
 
                     Print("color converted with " + Math.Round(image_instructions.image_accuracy * 100.0, 4) + "% accuracy, " + image_instructions.visible_pixel_count + " pixels in that image to be created");
