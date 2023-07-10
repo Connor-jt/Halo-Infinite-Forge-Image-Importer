@@ -241,7 +241,7 @@ namespace imaginator_halothousand.code_stuff{
         public return_object result = new ();
 
 
-        public return_object pixel_queue(string file_directory, float image_intensity, bool use_observables, int selected_color_index){
+        public return_object pixel_queue(string file_directory, float image_intensity, bool use_observables, int selected_color_index, float intensity_penalty){
 
             result.source_img = new Bitmap(file_directory);
             result.visualized_img = new Bitmap(file_directory);
@@ -270,13 +270,13 @@ namespace imaginator_halothousand.code_stuff{
                         curr_pixel++;
                         result.visible_pixel_count--;
                         result.image_accuracy += 1.0 / result.pixel_count;
-                        result.visualized_img.SetPixel(x, y, Color.FromArgb(0xFF, 0x00, 0x00));
+                        result.visualized_img.SetPixel(x, y, Color.FromArgb(0x00, 0xff, 0x00));
                         continue;
                     }
 
                     //int color_index = get_index_of_closest_color(myBitmap.GetPixel(x, y));
                     //visualizedBitmap.SetPixel(x, y, color_by_list_index(color_index));
-                    KeyValuePair<int, int> color_index = get_index_and_intensity_of_closest_color(pixel, image_intensity);
+                    KeyValuePair<int, int> color_index = get_index_and_intensity_of_closest_color(pixel, image_intensity, intensity_penalty);
                     result.visualized_img.SetPixel(x, y, color_by_intensity_list_index(color_index.Key, color_index.Value));
 
 
@@ -336,7 +336,7 @@ namespace imaginator_halothousand.code_stuff{
 
 
 
-        KeyValuePair<int, int> get_index_and_intensity_of_closest_color(Color og_color, float image_intensity){
+        KeyValuePair<int, int> get_index_and_intensity_of_closest_color(Color og_color, float image_intensity, float penalty){
             float r = color_as_float(og_color.R) * image_intensity;
             float g = color_as_float(og_color.G) * image_intensity;
             float b = color_as_float(og_color.B) * image_intensity;
@@ -353,6 +353,9 @@ namespace imaginator_halothousand.code_stuff{
                     float i_b = intensity_color_list[i, intensity, 2];
 
                     float distance = float_rb_dist(r, i_r) + float_rb_dist(g, i_g) + float_rb_dist(b, i_b);
+                    distance += ((100.0f - intensity)/100) * penalty;
+                    distance = Math.Clamp(distance, 0f, 1f);
+
                     if (closest_match_distance == null || distance < closest_match_distance){
                         closest_palette_index = i;
                         closest_intensity_index = intensity;

@@ -71,7 +71,12 @@
 
                     <Grid>
                         <TextBlock Text="image intensity:" Foreground="White" Margin="0,0,10,0"/>
-                        <TextBox x:Name="ui_lightness" Text="0.75" Foreground="Black" HorizontalAlignment="Right" Width="60"/>
+                        <TextBox x:Name="ui_lightness" Text="1.0" Foreground="Black" HorizontalAlignment="Right" Width="60"/>
+                    </Grid>
+                    
+                    <Grid>
+                        <TextBlock Text="low intensity penalty:" Foreground="White" Margin="0,0,10,0"/>
+                        <TextBox x:Name="ui_penalty" Text="0.1" Foreground="Black" HorizontalAlignment="Right" Width="60"/>
                     </Grid>
 
                     <Rectangle Height="1" Fill="#FFA0A0A0" Margin="3,5,3,25" />

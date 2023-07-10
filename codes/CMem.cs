@@ -5,6 +5,7 @@ using System.Diagnostics;
 using System.Drawing;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Windows.Input;
 
 namespace imaginator_halothousand.code_stuff{
@@ -99,6 +100,17 @@ namespace imaginator_halothousand.code_stuff{
         public float? read_float(long address){
             byte[]? read_var = read_mem(address, 4);
             return read_var != null ? BitConverter.ToSingle(read_var) : null;
+        }
+        public string? read_wide_string(long address){
+            StringBuilder myStringBuilder = new StringBuilder("", 128);
+            int offset = 0;
+            while (true){
+                byte[]? read_var = read_mem(address+ offset, 2);
+                if (read_var == null) return null;
+                if (read_var[0] == 0 && read_var[1] == 0) return myStringBuilder.ToString();
+                myStringBuilder.Append(Encoding.Unicode.GetString(read_var));
+                offset += 2;
+            }
         }
         #endregion
         #region MEM WRITING

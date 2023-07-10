@@ -61,6 +61,24 @@ namespace imaginator_halothousand.code_stuff{
             color_index_pointer = cm.read_base_pointers((long)color_ui_ptr + UI_color_ptr[0], UI_color_ptr.Skip(1).ToArray());
             return color_index_pointer;
         }
+        public string? last_obj_name = null;
+        string? get_obj_name(){
+            // we also need to calculate the position of the main UI
+            long? name_ui_ptr = return_UI_name_window_ptr();
+            if (name_ui_ptr == null) 
+                return null;
+
+            long? string_pointer = cm.read_base_pointers((long)name_ui_ptr + UI_obj_name_ptr[0], UI_obj_name_ptr.Skip(1).ToArray());
+            if (string_pointer == null) 
+                return null;
+
+            string? name_string = cm.read_wide_string((long)string_pointer);
+            if (name_string == null) 
+                return null;
+            // i forget what else we needed here
+
+            return name_string;
+        }
 
         // POINTERS 
         const string module_name = "HaloInfinite.exe";
@@ -70,13 +88,16 @@ namespace imaginator_halothousand.code_stuff{
         int UI_property_menu_TAGID       = 0x3AEF69DB;
         int UI_color_menu_TAGID          = 0x2D9F2A06;
         int UI_value_menu_TAGID          = 0x642CFE7F; // used for determining when color window has opened
+        int UI_name_menu_TAGID           = -704575514; // 0xD60107E6; // screw you joe sharp
 
-        long[] UI_index_ptr = new long[] { 0xB88, 0x928                            }; // property window
-        long[] UI_value_ptr = new long[] { 0xB88, 0xB08, 0x8C0, 0x8,   0x0,   0xFC }; // property window
-        long[] UI_color_ptr = new long[] { 0xB88, 0x6C8, 0xA0,  0x5A8, 0x928       }; // color window
+        long[] UI_index_ptr    = new long[] { 0xB88, 0x928                           }; // property window
+        long[] UI_value_ptr    = new long[] { 0xB88, 0xB08, 0x8C0, 0x8,   0x0,  0xFC }; // property window
+        long[] UI_color_ptr    = new long[] { 0xB88, 0x6C8, 0xA0,  0x5A8, 0x928      }; // color window
+        long[] UI_obj_name_ptr = new long[] { 0xC8,  0x398, 0x734                    }; // helper window
         long? return_UI_property_window_ptr() => return_UI_window_ptr(UI_property_menu_TAGID);
         long? return_UI_color_window_ptr()    => return_UI_window_ptr(UI_color_menu_TAGID);
         long? return_UI_value_window_ptr()    => return_UI_window_ptr(UI_value_menu_TAGID);
+        long? return_UI_name_window_ptr()     => return_UI_window_ptr(UI_name_menu_TAGID);
         long? return_UI_window_ptr(int tag_id){ // doubles as a check to see if the window is open
             // attempt a few times, incase the timing was the worst ever
             for (int repeat = 0; repeat < 3; repeat++){
@@ -208,13 +229,28 @@ namespace imaginator_halothousand.code_stuff{
                 update_status("duplicating object", MainWindow.macro_state.working);
                 if (!DuplicateObject())
                     return false;
-                restore_state = state.obj_created; // theres really no way with the current pointers to confirm this though
                 wait(300); // time for the object to spawn in
             }
             // we ALWAYS need to open the menu, regardless of what step we're up to
             update_status("openning menu", MainWindow.macro_state.working);
             if (!Enable_property_menu()) 
                 return false;
+
+            if (restore_state < state.obj_created){
+                bool object_was_created = false;
+                for (int i = 0; i < 10; i++){
+                    if (i > 0) wait(20);
+                    string? curr_obj_name = get_obj_name();
+                    if (curr_obj_name == null)
+                        continue;
+                    if (curr_obj_name == last_obj_name)
+                        continue;
+                    object_was_created = true;
+                    break;
+                }
+                if (!object_was_created) return false; // rerun the whole thing
+                restore_state = state.obj_created; 
+            }
 
 
 
@@ -434,7 +470,40 @@ namespace imaginator_halothousand.code_stuff{
         }
         #endregion
 
-        private bool DuplicateObject() => do_key_press(VKey.VK_D, true);
+
+        private bool DuplicateObject() {
+            last_obj_name = get_obj_name();
+            if (last_obj_name == null)
+                return false;
+
+            if (!do_key_press(VKey.VK_D, true))
+                return false;
+
+            return true;
+        }
+        private bool AwaitDuplicateObject(){
+            last_obj_name = get_obj_name();
+            if (last_obj_name == null)
+                return false;
+
+            for (int attempti = 0; attempti < 3; attempti++){ // 3 attemtps to spawn in the object
+                if (attempti > 0) update_status("duplicate attempt#" + attempti, MainWindow.macro_state.error);
+                if (!do_key_press(VKey.VK_D, true))
+                    return false;
+
+                for (int i = 0; i < 40; i++){ // 520ms time for waiting for object to spawn
+                    if (i > 0) wait(10);
+                    string? curr_obj_name = get_obj_name();
+                    if (curr_obj_name == null) 
+                        continue;
+                    if (curr_obj_name == last_obj_name) 
+                        continue;
+
+                    return true; // all menu systems are working
+                }
+            }
+            return false;
+        }
 
         #region PROPERTY WINDOW
         private bool Enable_property_menu(){

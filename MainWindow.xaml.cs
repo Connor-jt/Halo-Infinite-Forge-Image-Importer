@@ -42,12 +42,18 @@ namespace imaginator_halothousand{
                 Print("bad image intensity value, needs to be a decimal between 0.0 - 1.0");
                 return;
             }
+            float? intesity_penalty = try_parse_textbox_text(ui_penalty, 3);
+            if (intesity_penalty == null || image_intesity < 0.0 || image_intesity > 1.0){
+                Print("bad image penalty value, needs to be a decimal between 0.0 - 1.0");
+                return;
+            }
+
             try{Microsoft.Win32.OpenFileDialog ofd = new();
                 if (ofd.ShowDialog() == true){
 
                     ImageArrayifier new_imagator = new ImageArrayifier();
                     bool is_observable_mode = (observable_checkbox.IsChecked == true);
-                    return_object? new_image_instructions = new_imagator.pixel_queue(ofd.FileName, (float)image_intesity, is_observable_mode, is_observable_mode? ui_observable_textures.SelectedIndex : ui_textures.SelectedIndex);
+                    return_object? new_image_instructions = new_imagator.pixel_queue(ofd.FileName, (float)image_intesity, is_observable_mode, is_observable_mode? ui_observable_textures.SelectedIndex : ui_textures.SelectedIndex, (float)intesity_penalty);
                     if (new_image_instructions.pixels == null){ // test to make sure we did not attempt to load an overly large image
                         Print(new_image_instructions.output_message);
                         return;
@@ -146,6 +152,8 @@ namespace imaginator_halothousand{
             ui_textures.IsEnabled = false;
             ui_observable_textures.IsEnabled = false;
             ui_lightness.IsEnabled = false;
+
+            error_count = 0;
 
             ui_progressbar.Value = 0;
             is_running_macro = true;
@@ -250,6 +258,7 @@ namespace imaginator_halothousand{
             ui_time.Text = Convert.ToString(DateTime.Now - macro_start);
         }
         #endregion
+        public int error_count = 0;
         public void call_back_progress(macro_progress progress_results){
             if (image_instructions == null) return; // this should never happen
 
@@ -266,6 +275,10 @@ namespace imaginator_halothousand{
             } else if (progress_results.state == macro_state.aborted){
                 // close the operation
                 ended_macro();
+            } else if (progress_results.state == macro_state.error){
+                // update error counter
+                error_count++;
+                ui_errors.Text = error_count.ToString();
             }
         }
         #endregion
