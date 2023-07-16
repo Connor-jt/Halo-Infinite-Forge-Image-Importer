@@ -1,4 +1,4 @@
-﻿using Accessibility;
+using Accessibility;
 using System;
 using System.Collections.Generic;
 using System.Drawing;
@@ -181,17 +181,18 @@ namespace imaginator_halothousand.code_stuff{
             public byte r; public byte g; public byte b;
         }
         public static obbase_texture[] observed_textures = new obbase_texture[] {
+            // all commented out because they have terrible results, due to non tri-symmetrical values
             //new obbase_texture("Brushed Painted Metal",  "red",          97, 35, 35),
             //new obbase_texture("Rust 01",                "brown",       125, 73, 43),
             //new obbase_texture("Copper Metal Scratched", "orange",      161, 89,  4),
             //new obbase_texture("UNSC Pain Thick Yellow", "yellow",      174,119, 29),
             //new obbase_texture("Enamel Smooth",          "green",       102,186, 22),
             //new obbase_texture("Plastic",                "pickle",       85,102, 26),
-            new obbase_texture("Metal Smooth",           "metal?",       80, 84, 75),
-            new obbase_texture("Metal Rough",            "cement",       93, 92, 73),
+            //new obbase_texture("Metal Smooth",           "metal?",       80, 84, 75),
+            //new obbase_texture("Metal Rough",            "cement",       93, 92, 73),
             //new obbase_texture("Orange Peel Finish",     "purple",      147, 87,202),
             new obbase_texture("Plastic Techsuit",       "black",        29, 29, 29),
-            new obbase_texture("Gun Metal Painted",      "dark gray",    47, 47, 57),
+            //new obbase_texture("Gun Metal Painted",      "dark gray",    47, 47, 57),
             new obbase_texture("Paint",                  "gray",        110,110,110),
             new obbase_texture("Brushed",                "light gray",  150,150,150),
             new obbase_texture("Snowman Snow",           "kinda white", 170,170,170),
