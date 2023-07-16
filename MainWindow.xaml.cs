@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -123,6 +123,7 @@ namespace imaginator_halothousand{
         #endregion
 
         bool is_running_macro = false;
+        int skip_count = 0;
         private void Run_Macro(object sender, RoutedEventArgs e){
             if (image_instructions == null || image_instructions.pixels == null || is_running_macro) return;
 
@@ -141,6 +142,7 @@ namespace imaginator_halothousand{
                 Print("bad start index");
                 return;
             }
+            skip_count = (int)start_index;
 
             ui_coord_x.IsEnabled = false;
             ui_coord_y.IsEnabled = false;
@@ -159,9 +161,9 @@ namespace imaginator_halothousand{
             is_running_macro = true;
             List<mapped_object> pixels_list;
             if (selected_pixels.Count == 0){ // regular mode
-                pixels_list = image_instructions.pixels.Skip((int)start_index).ToList();
-                ui_progressbar.Maximum = image_instructions.visible_pixel_count;
-                ui_completion.Text = "0/" + image_instructions.visible_pixel_count;
+                pixels_list = image_instructions.pixels.Skip(skip_count).ToList();
+                ui_progressbar.Maximum = image_instructions.visible_pixel_count - skip_count;
+                ui_completion.Text = "0/" + (image_instructions.visible_pixel_count - skip_count);
             }else{ // selected indexes mode
                 ui_progressbar.Maximum = selected_pixels.Count;
                 ui_completion.Text = "0/" + selected_pixels.Count;
@@ -263,7 +265,7 @@ namespace imaginator_halothousand{
             if (image_instructions == null) return; // this should never happen
 
             if (selected_pixels.Count == 0) // regular mode
-                 ui_completion.Text = progress_results.completed + "/" + image_instructions.pixels.Count;
+                 ui_completion.Text = progress_results.completed + "/" + (image_instructions.pixels.Count - skip_count);
             else ui_completion.Text = progress_results.completed + "/" + selected_pixels.Count;
 
             ui_progressbar.Value = progress_results.completed;
