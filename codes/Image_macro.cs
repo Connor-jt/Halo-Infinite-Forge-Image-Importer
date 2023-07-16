@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
@@ -178,10 +178,10 @@ namespace imaginator_halothousand.code_stuff{
                     restore_state = state.not_created;
                     mapped_object? current = pixels[pixel_index];
                     wait(50);
-                    for (int i = 0; i < 3; i++){ // 3 attempts to create the pixel
+                    for (int i = 0; i < 5; i++){ // 3 attempts to create the pixel
 
                         if (!create_pixel((mapped_object)current)){
-                            if (i == 2){ // failed too many times, ending process
+                            if (i == 4){ // failed too many times, ending process
                                 update_status("failed pixel " + i + " too many times, aborting", MainWindow.macro_state.aborted);
                                 return; // failed
                             }
@@ -229,7 +229,7 @@ namespace imaginator_halothousand.code_stuff{
                 update_status("duplicating object", MainWindow.macro_state.working);
                 if (!DuplicateObject())
                     return false;
-                wait(300); // time for the object to spawn in
+                wait(320); // time for the object to spawn in
             }
             // we ALWAYS need to open the menu, regardless of what step we're up to
             update_status("openning menu", MainWindow.macro_state.working);
@@ -238,7 +238,7 @@ namespace imaginator_halothousand.code_stuff{
 
             if (restore_state < state.obj_created){
                 bool object_was_created = false;
-                for (int i = 0; i < 10; i++){
+                for (int i = 0; i < 30; i++){
                     if (i > 0) wait(20);
                     string? curr_obj_name = get_obj_name();
                     if (curr_obj_name == null)
